@@ -1,7 +1,7 @@
 # FAST LIO OFFLINE
 
 It is offline version of [FAST LIO](https://github.com/hku-mars/FAST_LIO).
-It processes rosbag files directly, read sensor messages from rosbag, without publishing any topics, and saving all point cloud data to a PCD file.
+It processes rosbag files directly, reads sensor messages from rosbag, without publishing any topics, and saving all point cloud data to a PCD file.
 
 ## Overview of Changes
 - class `Mapping`, code from original laserMapping.cpp
@@ -34,7 +34,7 @@ make -j6
 
 ## Run
 ```
-./build/devel/lib/fast_lio/mapping_offline <your-path-to-rosbag> /home/max/catkin_ws/src/FAST_LIO/config/avia_offline.yaml
+./build/devel/lib/fast_lio/mapping_offline <your-path-to-rosbag> ./config/avia_offline.yaml
 ```
 
 ## example result
