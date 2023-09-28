@@ -1,3 +1,35 @@
+# Fast Lio Offline
+
+It is offline version of [FAST LIO](https://github.com/hku-mars/FAST_LIO).
+It process rosbag directly, no topic publish, only save all point cloud to a pcd file.
+
+Detail changes:
+- 
+
+
+## Install
+install yaml-cpp, boost
+
+## to run:
+
+# modify config
+move all params from launch file to yaml file. 
+check the example `config/avia_offline.yaml`
+
+run
+```
+cd <your-catkin_ws>
+./devel/lib/fast_lio/mapping_offline <your-path-to-rosbag> /home/max/catkin_ws/src/FAST_LIO/config/avia_offline.yaml
+```
+
+## example result
+outdoor_Mainbuilding_100Hz_2020-12-24-16-46-29.bag
+<div align="left">
+<img src="doc/offline_example_1.png" width=47% />
+
+
+# Below is original Fast Lio README
+
 ## Related Works and Extended Application
 
 **SLAM:**

@@ -1,0 +1,252 @@
+
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
+#include <unistd.h>
+#include <csignal>
+#include <signal.h> // ::signal, ::raise
+#include <boost/stacktrace.hpp>
+
+#include "Mapping.hpp"
+#include <livox_ros_driver/CustomMsg.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/Imu.h>
+// #include "laser_mapping.h"
+// #include "utils.h"
+
+/// run faster-LIO in offline mode
+
+// DEFINE_string(config_file, "./config/avia.yaml", "path to config file");
+// DEFINE_string(bag_file, "/home/xiang/Data/dataset/fast_lio2/avia/2020-09-16-quick-shack.bag", "path to the ros bag");
+// DEFINE_string(time_log_file, "./Log/time.log", "path to time log file");
+// DEFINE_string(traj_log_file, "./Log/traj.txt", "path to traj log file");
+auto FLAGS_bag_file = "mybag.bag";
+auto FLAGS_config_file = "./config/avia.yaml";
+
+std::atomic<bool> is_exit(false);
+
+void print_stacktrace(int signum)
+{
+    ::signal(signum, SIG_DFL);
+    std::cerr << "Stack trace:\n"
+              << boost::stacktrace::stacktrace() << '\n';
+    ::raise(SIGABRT);
+}
+
+void SigHandle(int sig)
+{
+    ROS_WARN("catch sig %d", sig);
+    is_exit = true;
+}
+
+struct MessageHolder
+{
+    MessageHolder()
+        : imu_msg(nullptr),
+          livox_msg(nullptr),
+          point_cloud_msg(nullptr) {}
+    MessageHolder(const MessageHolder &other)
+        : imu_msg(other.imu_msg),
+          livox_msg(other.livox_msg),
+          point_cloud_msg(other.point_cloud_msg) {}
+    sensor_msgs::Imu::Ptr imu_msg;
+    livox_ros_driver::CustomMsg::ConstPtr livox_msg;
+    sensor_msgs::PointCloud2::ConstPtr point_cloud_msg;
+    double getTime() const
+    {
+        if (imu_msg)
+        {
+            return imu_msg->header.stamp.toSec();
+        }
+        if (livox_msg)
+        {
+            return livox_msg->header.stamp.toSec();
+        }
+        if (point_cloud_msg)
+        {
+            return point_cloud_msg->header.stamp.toSec();
+        }
+        throw std::runtime_error("MessageHolder: no message");
+        return 0;
+    }
+};
+
+// Comparator for sorting messages by timestamp
+struct CompareTimestamp
+{
+    bool operator()(MessageHolder const &m1, MessageHolder const &m2)
+    {
+        // Reverse the order for oldest message first
+        return m1.getTime() > m2.getTime();
+    }
+};
+
+int main(int argc, char **argv)
+{
+    ::signal(SIGSEGV, &print_stacktrace);
+    ::signal(SIGABRT, &print_stacktrace);
+    // gflags::ParseCommandLineFlags(&argc, &argv, true);
+
+    // FLAGS_stderrthreshold = google::INFO;
+    // FLAGS_colorlogtostderr = true;
+    // google::InitGoogleLogging(argv[0]);
+    std::string bag_file = FLAGS_bag_file;
+    std::string config_file = FLAGS_config_file;
+    if (argc == 3)
+    {
+        bag_file = argv[1];
+        config_file = argv[2];
+    }
+
+    ROS_INFO_STREAM("bag_file: " << bag_file);
+    ROS_INFO_STREAM("config_file: " << config_file);
+
+    auto laser_mapping = std::make_shared<LaserMapping>();
+    laser_mapping->initWithoutROS(config_file);
+    ROS_INFO_STREAM("LaserMapping init OK");
+
+    std::thread runOnceThread([&]()
+                              {
+    while (!is_exit) {
+        laser_mapping->RunOnce();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10)); // equivalent to usleep(1000);
+    } });
+
+    runOnceThread.detach();
+
+    /// handle ctrl-c
+    signal(SIGINT, SigHandle);
+
+    // just read the bag and send the data
+    ROS_INFO_STREAM("Opening rosbag ...");
+    rosbag::Bag bag(bag_file, rosbag::bagmode::Read);
+    ROS_INFO_STREAM("Open rosbag OK");
+
+    ROS_INFO_STREAM("Processing bag file ...");
+    std::priority_queue<MessageHolder, std::vector<MessageHolder>, CompareTimestamp> messageQueue;
+
+    int count = 0;
+    double last_lidar_time = 0;
+    int imu_count = 0;
+    for (const rosbag::MessageInstance &msg : rosbag::View(bag))
+    {
+        // std::cout << "loop start" << std::endl;
+        if (is_exit)
+        {
+            ROS_INFO_STREAM("exit, queue size " << messageQueue.size());
+            break;
+        }
+        // add to queue
+        {
+            MessageHolder holder;
+            auto livox_msg = msg.instantiate<livox_ros_driver::CustomMsg>();
+            if (livox_msg && msg.getTopic() == laser_mapping->lid_topic)
+            {
+                livox_ros_driver::CustomMsg::Ptr new_msg(new livox_ros_driver::CustomMsg(*livox_msg));
+                holder.livox_msg = new_msg;
+                messageQueue.push(holder);
+            }
+            auto point_cloud_msg = msg.instantiate<sensor_msgs::PointCloud2>();
+            if (point_cloud_msg && msg.getTopic() == laser_mapping->lid_topic)
+            {
+                sensor_msgs::PointCloud2::Ptr new_msg(new sensor_msgs::PointCloud2(*point_cloud_msg));
+                holder.point_cloud_msg = new_msg;
+                messageQueue.push(holder);
+            }
+            auto imu_msg = msg.instantiate<sensor_msgs::Imu>();
+            if (imu_msg && msg.getTopic() == laser_mapping->imu_topic)
+            {
+                imu_count++;
+                // if (imu_count % 2 == 0)
+                // {
+                //     continue;
+                // }
+                // ROS_INFO_STREAM("imu_msg to queue" << std::setprecision(20) << imu_msg->header.stamp.toSec() << " " << msg.getTopic());
+                sensor_msgs::Imu::Ptr new_msg(new sensor_msgs::Imu(*imu_msg));
+                holder.imu_msg = new_msg;
+                messageQueue.push(holder);
+            }
+        }
+        if (messageQueue.size() < 100)
+        {
+            continue;
+        }
+
+        const MessageHolder msg_holder = messageQueue.top();
+        // std::cout << "m* <" << m << ">" << std::endl;
+        messageQueue.pop();
+        // std::cout << "queue size after pop " << messageQueue.size() << std::endl;
+        // auto livox_msg = m->instantiate<livox_ros_driver::CustomMsg>();
+        // std::cout << "livox_msg <" << livox_msg << ">" << std::endl;
+        if (msg_holder.livox_msg)
+        {
+            ROS_INFO_STREAM("livox_msg size " << msg_holder.livox_msg->points.size());
+            ROS_INFO_STREAM("livox_msg " << std::setprecision(19) << msg_holder.livox_msg->header.stamp.toSec());
+            double diff = msg_holder.livox_msg->header.stamp.toSec() - last_lidar_time;
+            ROS_INFO_STREAM("diff " << diff);
+            last_lidar_time = msg_holder.livox_msg->header.stamp.toSec();
+            laser_mapping->livox_pcl_cbk(msg_holder.livox_msg);
+            // laser_mapping->RunOnce();
+            // sleep 100ms
+            usleep(100000);
+            // faster_lio::Timer::Evaluate(
+            //     [&laser_mapping, &livox_msg]()
+            //     {
+            //         laser_mapping->LivoxPCLCallBack(livox_msg);
+            //         laser_mapping->Run();
+            //     },
+            //     "Laser Mapping Single Run");
+            continue;
+        }
+
+        // auto point_cloud_msg = m->instantiate<sensor_msgs::PointCloud2>();
+        if (msg_holder.point_cloud_msg)
+        {
+            ROS_INFO_STREAM("point_cloud_msg " << std::setprecision(19) << msg_holder.point_cloud_msg->header.stamp.toSec());
+            laser_mapping->standard_pcl_cbk(msg_holder.point_cloud_msg);
+            usleep(100000);
+            // laser_mapping->RunOnce();
+            // faster_lio::Timer::Evaluate(
+            //     [&laser_mapping, &point_cloud_msg]()
+            //     {
+            //         laser_mapping->StandardPCLCallBack(point_cloud_msg);
+            //         laser_mapping->Run();
+            //     },
+            //     "Laser Mapping Single Run");
+            continue;
+        }
+
+        // auto imu_msg = m->instantiate<sensor_msgs::Imu>();
+        if (msg_holder.imu_msg)
+        {
+            // ROS_INFO_STREAM("imu_msg " << std::setprecision(20) << msg_holder.imu_msg->header.stamp.toSec());
+            laser_mapping->imu_cbk(msg_holder.imu_msg);
+            // sleep 10ms
+            // usleep(10000);
+            // laser_mapping->IMUCallBack(imu_msg);
+            continue;
+        }
+
+        // count++;
+        // if (count > 100)
+        // {
+        // break;
+        // }
+    }
+
+    ROS_INFO_STREAM("Finished processing bag file.");
+    laser_mapping->savePCD();
+
+    // laser_mapping->Finish();
+
+    // /// print the fps
+    // double fps = 1.0 / (faster_lio::Timer::GetMeanTime("Laser Mapping Single Run") / 1000.);
+    // LOG(INFO) << "Faster LIO average FPS: " << fps;
+
+    // LOG(INFO) << "save trajectory to: " << FLAGS_traj_log_file;
+    // laser_mapping->Savetrajectory(FLAGS_traj_log_file);
+
+    // faster_lio::Timer::PrintAll();
+    // faster_lio::Timer::DumpIntoFile(FLAGS_time_log_file);
+
+    return 0;
+}

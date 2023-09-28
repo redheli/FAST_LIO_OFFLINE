@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(fast_lio)
+project(fast_lio_offline)
 
 SET(CMAKE_BUILD_TYPE "Debug")
 
@@ -58,6 +58,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(Eigen3 REQUIRED)
 find_package(PCL 1.8 REQUIRED)
+find_package(Boost REQUIRED)
 
 message(Eigen: ${EIGEN3_INCLUDE_DIR})
 
@@ -84,6 +85,33 @@ catkin_package(
   INCLUDE_DIRS
 )
 
-add_executable(fastlio_mapping src/laserMapping.cpp include/ikd-Tree/ikd_Tree.cpp src/preprocess.cpp)
+add_executable(fastlio_mapping src/laserMapping.cpp 
+              include/ikd-Tree/ikd_Tree.cpp src/preprocess.cpp
+              src/IMU_Processing.hpp src/IMU_Processing.cpp)
 target_link_libraries(fastlio_mapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
 target_include_directories(fastlio_mapping PRIVATE ${PYTHON_INCLUDE_DIRS})
+
+
+add_executable(mapping_offline src/offline_mapping.cpp
+              src/Mapping.hpp src/Mapping.cpp
+              src/preprocess.cpp src/preprocess.h
+              include/ikd-Tree/ikd_Tree.cpp include/ikd-Tree/ikd_Tree.h
+              src/Utils.hpp
+              src/IMU_Processing.hpp src/IMU_Processing.cpp)
+target_link_libraries(mapping_offline ${catkin_LIBRARIES} 
+              ${PCL_LIBRARIES} 
+              ${PYTHON_LIBRARIES} 
+              yaml-cpp
+              boost_stacktrace_backtrace backtrace
+              )
+target_include_directories(mapping_offline PRIVATE ${PYTHON_INCLUDE_DIRS})
+
+add_executable(mapping_online src/online_mapping.cpp 
+              src/Mapping.hpp src/Mapping.cpp
+              src/preprocess.cpp src/preprocess.h
+              include/ikd-Tree/ikd_Tree.cpp include/ikd-Tree/ikd_Tree.h
+              src/Utils.hpp
+              src/IMU_Processing.hpp src/IMU_Processing.cpp)
+target_link_libraries(mapping_online ${catkin_LIBRARIES} ${PCL_LIBRARIES} 
+${PYTHON_LIBRARIES} yaml-cpp boost_stacktrace_backtrace backtrace)
+target_include_directories(mapping_online PRIVATE ${PYTHON_INCLUDE_DIRS})
