@@ -1,25 +1,40 @@
-# Fast Lio Offline
+# FAST LIO OFFLINE
 
 It is offline version of [FAST LIO](https://github.com/hku-mars/FAST_LIO).
-It process rosbag directly, no topic publish, only save all point cloud to a pcd file.
+It processes rosbag files directly, read sensor messages from rosbag, without publishing any topics, and saving all point cloud data to a PCD file.
 
-Detail changes:
-- 
+## Overview of Changes
+- class `Mapping`, code from original laserMapping.cpp
+- `offline_mapping.cpp`
+    - Moved sensor message process while loop to a separate thread.
+    - Messages are placed in a priority queue to ensure ordering by timestamp.
+- `online_mapping.cpp`
+    - Retains the same functionality as the original laserMapping.cpp.
+    - It is just used to verify the Mapping class works as originally intended.
 
 
 ## Install
-install yaml-cpp, boost
 
-## to run:
+### Prerequisites
+install `yaml-cpp`, `boost`
 
-# modify config
-move all params from launch file to yaml file. 
-check the example `config/avia_offline.yaml`
+### Configuration
+- Move all params from launch file to yaml file. 
+- Refer to the example configuration in config/avia_offline.yaml.
 
-run
+## Build
+use catkin_make or catkin build
+or just cmake
 ```
-cd <your-catkin_ws>
-./devel/lib/fast_lio/mapping_offline <your-path-to-rosbag> /home/max/catkin_ws/src/FAST_LIO/config/avia_offline.yaml
+mkdir build
+cd build
+cmake ..
+make -j6
+```
+
+## Run
+```
+./build/devel/lib/fast_lio/mapping_offline <your-path-to-rosbag> /home/max/catkin_ws/src/FAST_LIO/config/avia_offline.yaml
 ```
 
 ## example result
