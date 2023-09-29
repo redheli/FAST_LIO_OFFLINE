@@ -118,6 +118,7 @@ int main(int argc, char **argv)
     int count = 0;
     double last_lidar_time = 0;
     int imu_count = 0;
+    double first_message_ts = 0;
     for (const rosbag::MessageInstance &msg : rosbag::View(bag))
     {
         if (is_exit)
@@ -162,10 +163,8 @@ int main(int argc, char **argv)
 
         if (msg_holder.livox_msg)
         {
-            ROS_INFO_STREAM("livox_msg size " << msg_holder.livox_msg->points.size());
-            ROS_INFO_STREAM("livox_msg " << std::setprecision(19) << msg_holder.livox_msg->header.stamp.toSec());
+            ROS_INFO_STREAM("process livox_msg " <<std::fixed << std::setprecision(2) << msg_holder.livox_msg->header.stamp.toSec() - first_message_ts<<"s\n");
             double diff = msg_holder.livox_msg->header.stamp.toSec() - last_lidar_time;
-            ROS_INFO_STREAM("diff " << diff);
             last_lidar_time = msg_holder.livox_msg->header.stamp.toSec();
             laser_mapping->livox_pcl_cbk(msg_holder.livox_msg);
             // sleep 100ms
@@ -175,7 +174,7 @@ int main(int argc, char **argv)
 
         if (msg_holder.point_cloud_msg)
         {
-            ROS_INFO_STREAM("point_cloud_msg " << std::setprecision(19) << msg_holder.point_cloud_msg->header.stamp.toSec());
+            ROS_INFO_STREAM("process point_cloud_msg " << std::fixed << std::setprecision(2) << msg_holder.point_cloud_msg->header.stamp.toSec() - first_message_ts<<"s\n");
             laser_mapping->standard_pcl_cbk(msg_holder.point_cloud_msg);
             usleep(100000);
             continue;
@@ -184,6 +183,10 @@ int main(int argc, char **argv)
         if (msg_holder.imu_msg)
         {
             laser_mapping->imu_cbk(msg_holder.imu_msg);
+            if (first_message_ts == 0)
+            {
+                first_message_ts = msg_holder.imu_msg->header.stamp.toSec();
+            }
             continue;
         }
     }

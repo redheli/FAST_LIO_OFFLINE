@@ -316,7 +316,6 @@ void LaserMapping::RunOnce()
     {
         return;
     }
-    ROS_INFO_STREAM("[RunOnce] sync_packages OK");
 
     if (flg_first_scan)
     {
@@ -326,8 +325,6 @@ void LaserMapping::RunOnce()
         std::cout << "debug 0" << std::endl;
         return;
     }
-
-    std::cout << "debug 1" << std::endl;
 
     double t0, t1, t2, t3, t4, t5, match_start, solve_start, svd_time;
 
@@ -339,12 +336,10 @@ void LaserMapping::RunOnce()
     t0 = omp_get_wtime();
 
     p_imu->Process(measures, kf, feats_undistort);
-    std::cout << "debug 2" << std::endl;
     double imu_lidar_diff = measures.lidar_beg_time - measures.imu.back()->header.stamp.toSec();
     
     state_point = kf.get_x();
     pos_lid = state_point.pos + state_point.rot * state_point.offset_T_L_I;
-    std::cout << "debug 3" << std::endl;
     if (feats_undistort->empty() || (feats_undistort == NULL))
     {
         ROS_WARN("No point, skip this scan!\n");
@@ -485,7 +480,6 @@ void LaserMapping::savePCD()
 
 void LaserMapping::publish_frame_world(const ros::Publisher &pubLaserCloudFull)
 {
-    ROS_INFO_STREAM("[publish_frame_world]");
     if (scan_pub_en) // 设置是否发布激光雷达数据，是否发布稠密数据，是否发布激光雷达数据的身体数据
     {
         PointCloudXYZI::Ptr laserCloudFullRes(dense_pub_en ? feats_undistort : feats_down_body); // 判断是否需要降采样
@@ -545,8 +539,6 @@ void LaserMapping::publish_frame_world(const ros::Publisher &pubLaserCloudFull)
             scan_wait_num = 0;
         }
     }
-
-    std::cout << "[publish_frame_world] done" << std::endl;
 }
 
 void LaserMapping::map_incremental()
@@ -596,7 +588,6 @@ void LaserMapping::map_incremental()
 
     double st_time = omp_get_wtime();
     add_point_size = ikdtree.Add_Points(PointToAdd, true);
-    std::cout << "PointNoNeedDownsample size*********************** " << PointNoNeedDownsample.size() << std::endl;
     ikdtree.Add_Points(PointNoNeedDownsample, false);
     add_point_size = PointToAdd.size() + PointNoNeedDownsample.size();
     kdtree_incremental_time = omp_get_wtime() - st_time;
@@ -720,7 +711,6 @@ void LaserMapping::imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
 {
     publish_count++;
     static int imu_cbk_count = 0;
-    // cout<<"IMU got at: "<<msg_in->header.stamp.toSec()<<endl;
     sensor_msgs::Imu::Ptr msg(new sensor_msgs::Imu(*msg_in));
 
     if (abs(timediff_lidar_wrt_imu) > 0.1 && time_sync_en)
