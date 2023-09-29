@@ -61,8 +61,6 @@ LaserMapping::LaserMapping()
 void LaserMapping::initOthers()
 {
     ROS_INFO("LaserMapping initOthers");
-    // path.header.stamp = ros::Time::now();
-    // path.header.frame_id = "camera_init";
 
     FOV_DEG = (fov_deg + 10.0) > 179.9 ? 179.9 : (fov_deg + 10.0);
     HALF_FOV_COS = cos((FOV_DEG) * 0.5 * PI_M / 180.0);
@@ -107,30 +105,6 @@ void LaserMapping::initOthers()
         cout << "~~~~" << ROOT_DIR << " file opened" << endl;
     else
         cout << "~~~~" << ROOT_DIR << " doesn't exist" << endl;
-    /*** ROS subscribe initialization ***/
-    // ROS_INFO("lid topic <%s>", lid_topic.c_str());
-    // ros::Subscriber sub_pcl = p_pre->lidar_type == AVIA ? nh.subscribe(lid_topic, 200000, livox_pcl_cbk) : nh.subscribe(lid_topic, 200000, standard_pcl_cbk);
-    // if (p_pre->lidar_type == AVIA)
-    // {
-    //     sub_pcl = nh.subscribe<livox_ros_driver::CustomMsg>(lid_topic, 200000,
-    //                                                         [this](const livox_ros_driver::CustomMsg::ConstPtr &msg)
-    //                                                         { livox_pcl_cbk(msg); });
-    // }
-    // else
-    // {
-    //     sub_pcl = nh.subscribe<sensor_msgs::PointCloud2>(lid_topic, 200000,
-    //                                                      [this](const sensor_msgs::PointCloud2::ConstPtr &msg)
-    //                                                      { standard_pcl_cbk(msg); });
-    // }
-    // ROS_INFO("imu topic <%s>", imu_topic.c_str());
-    // sub_imu = nh.subscribe<sensor_msgs::Imu>(imu_topic, 200000, [this](const sensor_msgs::Imu::ConstPtr &msg)
-    //                                          { imu_cbk(msg); });
-    // pubLaserCloudFull = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered", 100000);
-    // pubLaserCloudFull_body = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered_body", 100000);
-    // pubLaserCloudEffect = nh.advertise<sensor_msgs::PointCloud2>("/cloud_effected", 100000);
-    // pubLaserCloudMap = nh.advertise<sensor_msgs::PointCloud2>("/Laser_map", 100000);
-    // pubOdomAftMapped = nh.advertise<nav_msgs::Odometry>("/Odometry", 100000);
-    // pubPath = nh.advertise<nav_msgs::Path>("/path", 100000);
 }
 
 void LaserMapping::initOnline(ros::NodeHandle &nh)
@@ -170,7 +144,6 @@ void LaserMapping::initOnline(ros::NodeHandle &nh)
     nh.param<std::vector<double>>("mapping/extrinsic_T", extrinT, std::vector<double>());
     nh.param<std::vector<double>>("mapping/extrinsic_R", extrinR, std::vector<double>());
     ROS_INFO("LaserMapping initOnline2");
-    // ros::Subscriber sub_pcl = p_pre->lidar_type == AVIA ? nh.subscribe(lid_topic, 200000, livox_pcl_cbk) : nh.subscribe(lid_topic, 200000, standard_pcl_cbk);
     if (p_pre->lidar_type == AVIA)
     {
         sub_pcl = nh.subscribe<livox_ros_driver::CustomMsg>(lid_topic, 200000,
@@ -334,12 +307,10 @@ void LaserMapping::LoadParamsFromYAML(const std::string &yaml_file)
     extrinR = yaml["mapping"]["extrinsic_R"].as<std::vector<double>>(std::vector<double>());
     ROS_INFO_STREAM("extrinR: " << extrinR[0] << " " << extrinR[1] << " " << extrinR[2] << " " << extrinR[3] << " " << extrinR[4] << " " << extrinR[5] << " " << extrinR[6] << " " << extrinR[7] << " " << extrinR[8]);
     ROS_INFO_STREAM("LoadParamsFromYAML done");
-    // exit(0);
 }
 
 void LaserMapping::RunOnce()
 {
-    // ROS_INFO("LaserMapping RunOnce");
     std::lock_guard<std::mutex> lock(mtx_buffer);
     if (!sync_packages())
     {
@@ -370,24 +341,7 @@ void LaserMapping::RunOnce()
     p_imu->Process(measures, kf, feats_undistort);
     std::cout << "debug 2" << std::endl;
     double imu_lidar_diff = measures.lidar_beg_time - measures.imu.back()->header.stamp.toSec();
-    std::cout << "measures imu size: " << measures.imu.size() << std::endl;
-    std::cout << "measures imu begin time: " << std::setprecision(20) << measures.imu.front()->header.stamp.toSec() << std::endl;
-    std::cout << "measures imu   end time: " << std::setprecision(20) << measures.imu.back()->header.stamp.toSec() << std::endl;
-    // print each imu timestamp of the measures.imu
-    // std::cout << "print each imu timestamp of the measures.imu=========" << std::endl;
-    // for (int i = 0; i < measures.imu.size(); i++)
-    // {
-    //     // time diff with last imu
-    //     double diff = 0;
-    //     if (i > 0)
-    //     {
-    //         diff = measures.imu[i]->header.stamp.toSec() - measures.imu[i - 1]->header.stamp.toSec();
-    //     }
-    //     std::cout << "measures imu timestamp: " << i << " " << std::setprecision(20) << measures.imu[i]->header.stamp.toSec() << " " << diff << std::endl;
-    // }
-    // std::cout << "=========end" << std::endl;
-    std::cout << "imu_lidar_diff-------------------------------: " << imu_lidar_diff << std::endl;
-    ROS_INFO_STREAM("lidar_beg_time " << std::setprecision(19) << measures.lidar_beg_time);
+    
     state_point = kf.get_x();
     pos_lid = state_point.pos + state_point.rot * state_point.offset_T_L_I;
     std::cout << "debug 3" << std::endl;
@@ -431,7 +385,6 @@ void LaserMapping::RunOnce()
     // 获取Ikd tree中的节点数
     kdtree_size_st = ikdtree.size();
 
-    // cout<<"[ mapping ]: In num: "<<feats_undistort->points.size()<<" downsamp "<<feats_down_size<<" Map num: "<<featsFromMapNum<<"effect num:"<<effct_feat_num<<endl;
 
     /*** ICP and iterated Kalman filter update ***/
     if (feats_down_size < 5)
@@ -507,48 +460,10 @@ void LaserMapping::RunOnce()
 
     // TODO save pose to file
 
-    // /******* Publish points *******/
-    // if (path_en)
-    //     publish_path(pubPath);
-
-    // if (scan_pub_en || pcd_save_en)
     {
         publish_frame_world(pubLaserCloudFull);
     }
-    // if (scan_pub_en && scan_body_pub_en)
-    //     publish_frame_body(pubLaserCloudFull_body);
-    // publish_effect_world(pubLaserCloudEffect);
-    // publish_map(pubLaserCloudMap);
-
-    // /*** Debug variables ***/
-    // if (runtime_pos_log)
-    // {
-    //     frame_num++;
-    //     kdtree_size_end = ikdtree.size();
-    //     aver_time_consu = aver_time_consu * (frame_num - 1) / frame_num + (t5 - t0) / frame_num;
-    //     aver_time_icp = aver_time_icp * (frame_num - 1) / frame_num + (t_update_end - t_update_start) / frame_num;
-    //     aver_time_match = aver_time_match * (frame_num - 1) / frame_num + (match_time) / frame_num;
-    //     aver_time_incre = aver_time_incre * (frame_num - 1) / frame_num + (kdtree_incremental_time) / frame_num;
-    //     aver_time_solve = aver_time_solve * (frame_num - 1) / frame_num + (solve_time + solve_H_time) / frame_num;
-    //     aver_time_const_H_time = aver_time_const_H_time * (frame_num - 1) / frame_num + solve_time / frame_num;
-    //     T1[time_log_counter] = Measures.lidar_beg_time;
-    //     s_plot[time_log_counter] = t5 - t0;
-    //     s_plot2[time_log_counter] = feats_undistort->points.size();
-    //     s_plot3[time_log_counter] = kdtree_incremental_time;
-    //     s_plot4[time_log_counter] = kdtree_search_time;
-    //     s_plot5[time_log_counter] = kdtree_delete_counter;
-    //     s_plot6[time_log_counter] = kdtree_delete_time;
-    //     s_plot7[time_log_counter] = kdtree_size_st;
-    //     s_plot8[time_log_counter] = kdtree_size_end;
-    //     s_plot9[time_log_counter] = aver_time_consu;
-    //     s_plot10[time_log_counter] = add_point_size;
-    //     time_log_counter++;
-    //     printf("[ mapping ]: time: IMU + Map + Input Downsample: %0.6f ave match: %0.6f ave solve: %0.6f  ave ICP: %0.6f  map incre: %0.6f ave total: %0.6f icp: %0.6f construct H: %0.6f \n", t1 - t0, aver_time_match, aver_time_solve, t3 - t1, t5 - t3, aver_time_consu, aver_time_icp, aver_time_const_H_time);
-    //     ext_euler = SO3ToEuler(state_point.offset_R_L_I);
-    //     fout_out << setw(20) << Measures.lidar_beg_time - first_lidar_time << " " << euler_cur.transpose() << " " << state_point.pos.transpose() << " " << ext_euler.transpose() << " " << state_point.offset_T_L_I.transpose() << " " << state_point.vel.transpose()
-    //              << " " << state_point.bg.transpose() << " " << state_point.ba.transpose() << " " << state_point.grav << " " << feats_undistort->points.size() << endl;
-    //     dump_lio_state_to_log(fp);
-    // }
+    
 }
 
 void LaserMapping::savePCD()
@@ -831,9 +746,7 @@ void LaserMapping::imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
 
     imu_buffer.push_back(msg);
     imu_cbk_count++;
-    // std::cout << "imu_cbk_count: " << imu_cbk_count << std::endl;
     mtx_buffer.unlock();
-    // sig_buffer.notify_all();
 }
 
 void LaserMapping::standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg)
@@ -855,7 +768,6 @@ void LaserMapping::standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &ms
     last_timestamp_lidar = msg->header.stamp.toSec();
     s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
     mtx_buffer.unlock();
-    // sig_buffer.notify_all();
 }
 
 void LaserMapping::h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_data)
@@ -962,7 +874,7 @@ void LaserMapping::h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<d
 
         /*** calculate the Measuremnt Jacobian matrix H ***/
         V3D C(s.rot.conjugate() * norm_vec);
-        V3D A(point_crossmat * C); // Max: https://github.com/hku-mars/FAST_LIO/issues/62#issuecomment-1188560900
+        V3D A(point_crossmat * C);
         if (extrinsic_est_en)
         {
             V3D B(point_be_crossmat * s.offset_R_L_I.conjugate() * C); // s.rot.conjugate()*norm_vec);
@@ -1011,5 +923,4 @@ void LaserMapping::livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &ms
 
     s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
     mtx_buffer.unlock();
-    // sig_buffer.notify_all();
 }

@@ -1,16 +1,13 @@
 # FAST LIO OFFLINE
 
-It is offline version of [FAST LIO](https://github.com/hku-mars/FAST_LIO).
-It processes rosbag files directly, reads sensor messages from rosbag, without publishing any topics, and saving all point cloud data to a PCD file.
+FAST LIO Offline is an offline version of [FAST LIO](https://github.com/hku-mars/FAST_LIO),
+designed for efficient and direct processing of rosbag files. It reads sensor messages from rosbag without publishing any topics, saving all point cloud data to a PCD file.
 
-## Overview of Changes
-- class `Mapping`, code from original laserMapping.cpp
-- `offline_mapping.cpp`
-    - Moved sensor message process while loop to a separate thread.
-    - Messages are placed in a priority queue to ensure ordering by timestamp.
-- `online_mapping.cpp`
-    - Retains the same functionality as the original laserMapping.cpp.
-    - It is just used to verify the Mapping class works as originally intended.
+## Features
+- Separate Thread for Sensor Message Processing: The sensor message process while loop has been moved to a separate thread in `offline_mapping.cp`p to enhance performance.
+- Priority Queue for Messages: Messages are placed in a priority queue to ensure they are ordered by timestamp.
+- Dedicated `Mapping` Class: The Mapping class, extracted from the original laserMapping.cpp, is used for mapping functionalities.
+- Verification with Online Mapping: `online_mapping.cpp` retains the same functionality as the original laserMapping.cpp to verify that the Mapping class works as intended.
 
 
 ## Install
@@ -23,8 +20,8 @@ install `yaml-cpp`, `boost`
 - Refer to the example configuration in config/avia_offline.yaml.
 
 ## Build
-use catkin_make or catkin build
-or just cmake
+use `catkin_make` or `catkin build`
+or just `cmake`
 ```
 mkdir build
 cd build
@@ -36,6 +33,7 @@ make -j6
 ```
 ./build/devel/lib/fast_lio/mapping_offline <your-path-to-rosbag> ./config/avia_offline.yaml
 ```
+The pcd file is save to `PCD/scans_offline.pcd`
 
 ## example result
 outdoor_Mainbuilding_100Hz_2020-12-24-16-46-29.bag
