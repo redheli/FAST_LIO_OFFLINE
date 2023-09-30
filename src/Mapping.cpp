@@ -60,7 +60,7 @@ LaserMapping::LaserMapping()
     time_t t = time(0);
     char tmp[64];
     strftime(tmp, sizeof(tmp), "%Y%m%d_%H%M%S", localtime(&t));
-    auto baml_file_dir = std::string(ROOT_DIR) + "/PCD/" + std::string(tmp);
+    baml_file_dir = std::string(ROOT_DIR) + "/PCD/" + std::string(tmp);
     std::cout<<"Pose File Dir: "<<baml_file_dir<<std::endl;
     mkdir(baml_file_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     baml_pose_fs.open(baml_file_dir + "/alidarPose.csv", std::ios::out);
@@ -487,6 +487,8 @@ void LaserMapping::savePCD()
         cout << "....... Done" << file_name << endl;
         cout << "current scan saved to /PCD/" << file_name << endl;
     }
+
+    std::cout<<"Pose and pcd files save to: "<<baml_file_dir<<std::endl;
 }
 
 void LaserMapping::savePoseAndPointCloud()
@@ -500,39 +502,39 @@ void LaserMapping::savePoseAndPointCloud()
         baml_pose_fs << outT(j, k) << ",";
         baml_pose_fs << endl;
     }
-    // string pose_file_name = string("pose.txt");
-    // string pose_dir(string(string(ROOT_DIR) + "PCD/") + pose_file_name);
-    // ofstream fout_pose;
-    // fout_pose.open(pose_dir, ios::out);
-    // if (fout_pose)
+
+    // save pointcloud to file
+    static int pcd_count = 0;
+    string pointcloud_file_name = baml_file_dir + "/full" + std::to_string(pcd_count) + ".pcd";
+
+    int size = feats_undistort->points.size();
+    PointCloudXYZI::Ptr laserCloudIMUBody(new PointCloudXYZI(size, 1)); //创建一个点云用于存储转换到IMU系的点云
+
+    for (int i = 0; i < size; i++)
+    {
+        RGBpointBodyLidarToIMU(&feats_undistort->points[i],
+                               &laserCloudIMUBody->points[i]); //转换到IMU坐标系
+    }
+
+    pcl::io::savePCDFileBinary(pointcloud_file_name, *laserCloudIMUBody);
+    pcd_count++;
+
+    // string pointcloud_dir(string(string(ROOT_DIR) + "PCD/") + pointcloud_file_name);
+    // ofstream fout_pointcloud;
+    // fout_pointcloud.open(pointcloud_dir, ios::out);
+    // if (fout_pointcloud)
     // {
-    //     fout_pose << "pose xyz: " << state_point.pos.transpose() << endl;
-    //     fout_pose << "pose quat: " << geoQuat.x << " " << geoQuat.y << " " << geoQuat.z << " " << geoQuat.w << endl;
-    //     fout_pose.close();
+    //     fout_pointcloud << "pointcloud size: " << feats_undistort->size() << endl;
+    //     for (int i = 0; i < feats_undistort->size(); i++)
+    //     {
+    //         fout_pointcloud << feats_undistort->points[i].x << " " << feats_undistort->points[i].y << " " << feats_undistort->points[i].z << endl;
+    //     }
+    //     fout_pointcloud.close();
     // }
     // else
     // {
-    //     cout << "pose file open failed" << endl;
+    //     cout << "pointcloud file open failed" << endl;
     // }
-
-    // save pointcloud to file
-    string pointcloud_file_name = string("pointcloud.txt");
-    string pointcloud_dir(string(string(ROOT_DIR) + "PCD/") + pointcloud_file_name);
-    ofstream fout_pointcloud;
-    fout_pointcloud.open(pointcloud_dir, ios::out);
-    if (fout_pointcloud)
-    {
-        fout_pointcloud << "pointcloud size: " << feats_undistort->size() << endl;
-        for (int i = 0; i < feats_undistort->size(); i++)
-        {
-            fout_pointcloud << feats_undistort->points[i].x << " " << feats_undistort->points[i].y << " " << feats_undistort->points[i].z << endl;
-        }
-        fout_pointcloud.close();
-    }
-    else
-    {
-        cout << "pointcloud file open failed" << endl;
-    }
 }
 
 void LaserMapping::publish_frame_world(const ros::Publisher &pubLaserCloudFull)

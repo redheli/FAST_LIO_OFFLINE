@@ -136,6 +136,17 @@ public:
         po->intensity = pi->intensity;
     }
 
+    void RGBpointBodyLidarToIMU(PointType const * const pi, PointType * const po)
+    {
+        V3D p_body_lidar(pi->x, pi->y, pi->z);
+        V3D p_body_imu(state_point.offset_R_L_I*p_body_lidar + state_point.offset_T_L_I);
+
+        po->x = p_body_imu(0);
+        po->y = p_body_imu(1);
+        po->z = p_body_imu(2);
+        po->intensity = pi->intensity;
+    }
+
     void points_cache_collect()
     {
         PointVector points_history;
@@ -288,4 +299,5 @@ public:
 
     pcl::VoxelGrid<pcl::PointXYZINormal> save_pcd_filter;
     ofstream baml_pose_fs; // save pose to BAML pose file, https://github.com/hku-mars/BALM/issues/27#issuecomment-1259446844
+    std::string baml_file_dir;
 };

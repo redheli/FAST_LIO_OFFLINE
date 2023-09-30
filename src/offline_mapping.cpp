@@ -5,6 +5,7 @@
 #include <csignal>
 #include <signal.h>
 #include <boost/stacktrace.hpp>
+#include <future>
 
 #include "Mapping.hpp"
 #include <livox_ros_driver/CustomMsg.h>
@@ -95,12 +96,18 @@ int main(int argc, char **argv)
     laser_mapping->initWithoutROS(config_file);
     ROS_INFO_STREAM("LaserMapping init OK");
 
+    std::promise<void> exitSignal;
+    std::future<void> futureObj = exitSignal.get_future();
+
+
     std::thread runOnceThread([&]()
                               {
     while (!is_exit) {
         laser_mapping->RunOnce();
         std::this_thread::sleep_for(std::chrono::milliseconds(10)); // equivalent to usleep(1000);
-    } });
+    }
+        exitSignal.set_value(); // Signal that the thread has finished
+    });
 
     runOnceThread.detach();
 
@@ -192,6 +199,7 @@ int main(int argc, char **argv)
     }
 
     ROS_INFO_STREAM("Finished processing bag file.");
+    futureObj.wait(); // Wait for the signal from the detached thread
     laser_mapping->savePCD();
 
     return 0;
