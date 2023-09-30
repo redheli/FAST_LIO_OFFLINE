@@ -78,6 +78,7 @@ public:
     LaserMapping();
     ~LaserMapping()
     {
+        baml_pose_fs.close();
     }
 
     /// init without ros
@@ -97,6 +98,7 @@ public:
     void lasermap_fov_segment();
     void map_incremental();
     void publish_frame_world(const ros::Publisher &pubLaserCloudFull);
+    void savePoseAndPointCloud();
 
     // help functions
     template <typename T>
@@ -285,4 +287,5 @@ public:
     KD_TREE<PointType> ikdtree;
 
     pcl::VoxelGrid<pcl::PointXYZINormal> save_pcd_filter;
+    ofstream baml_pose_fs; // save pose to BAML pose file, https://github.com/hku-mars/BALM/issues/27#issuecomment-1259446844
 };

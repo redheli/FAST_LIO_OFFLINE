@@ -43,6 +43,7 @@
 #include <Python.h>
 #include <so3_math.h>
 #include <ros/ros.h>
+#include <iostream> 
 #include <yaml-cpp/yaml.h>
 
 #include "Mapping.hpp"
@@ -55,7 +56,16 @@ LaserMapping::LaserMapping()
     p_pre = std::make_shared<Preprocess>();
     p_imu = std::make_shared<ImuProcess>();
 
-    cout << "p_pre->lidar_type " << p_pre->lidar_type << endl;
+    // create folder under ./PCD with current time
+    time_t t = time(0);
+    char tmp[64];
+    strftime(tmp, sizeof(tmp), "%Y%m%d_%H%M%S", localtime(&t));
+    auto baml_file_dir = std::string(ROOT_DIR) + "/PCD/" + std::string(tmp);
+    std::cout<<"Pose File Dir: "<<baml_file_dir<<std::endl;
+    mkdir(baml_file_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    baml_pose_fs.open(baml_file_dir + "/alidarPose.csv", std::ios::out);
+    baml_pose_fs.precision(6);
+    baml_pose_fs<<std::fixed;
 }
 
 void LaserMapping::initOthers()
@@ -457,6 +467,7 @@ void LaserMapping::RunOnce()
 
     {
         publish_frame_world(pubLaserCloudFull);
+        savePoseAndPointCloud();
     }
     
 }
@@ -475,6 +486,52 @@ void LaserMapping::savePCD()
         pcd_writer.writeBinary(all_points_dir, *pcl_wait_save);
         cout << "....... Done" << file_name << endl;
         cout << "current scan saved to /PCD/" << file_name << endl;
+    }
+}
+
+void LaserMapping::savePoseAndPointCloud()
+{
+    // save pose to file
+    Eigen::Matrix4d outT;
+    outT << state_point.rot.toRotationMatrix(), state_point.pos, 0, 0, 0, measures.lidar_beg_time;
+    for (int j = 0; j < 4; j++)
+    {
+        for (int k = 0; k < 4; k++)
+        baml_pose_fs << outT(j, k) << ",";
+        baml_pose_fs << endl;
+    }
+    // string pose_file_name = string("pose.txt");
+    // string pose_dir(string(string(ROOT_DIR) + "PCD/") + pose_file_name);
+    // ofstream fout_pose;
+    // fout_pose.open(pose_dir, ios::out);
+    // if (fout_pose)
+    // {
+    //     fout_pose << "pose xyz: " << state_point.pos.transpose() << endl;
+    //     fout_pose << "pose quat: " << geoQuat.x << " " << geoQuat.y << " " << geoQuat.z << " " << geoQuat.w << endl;
+    //     fout_pose.close();
+    // }
+    // else
+    // {
+    //     cout << "pose file open failed" << endl;
+    // }
+
+    // save pointcloud to file
+    string pointcloud_file_name = string("pointcloud.txt");
+    string pointcloud_dir(string(string(ROOT_DIR) + "PCD/") + pointcloud_file_name);
+    ofstream fout_pointcloud;
+    fout_pointcloud.open(pointcloud_dir, ios::out);
+    if (fout_pointcloud)
+    {
+        fout_pointcloud << "pointcloud size: " << feats_undistort->size() << endl;
+        for (int i = 0; i < feats_undistort->size(); i++)
+        {
+            fout_pointcloud << feats_undistort->points[i].x << " " << feats_undistort->points[i].y << " " << feats_undistort->points[i].z << endl;
+        }
+        fout_pointcloud.close();
+    }
+    else
+    {
+        cout << "pointcloud file open failed" << endl;
     }
 }
 
