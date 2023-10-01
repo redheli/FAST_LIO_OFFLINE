@@ -126,7 +126,7 @@ int main(int argc, char **argv)
     ROS_INFO_STREAM("Processing bag file ..."<<bag_file);
     std::priority_queue<MessageHolder, std::vector<MessageHolder>, CompareTimestamp> messageQueue;
 
-    int count = 0;
+    int pc_count = 0;
     double last_lidar_time = 0;
     int imu_count = 0;
     double first_message_ts = 0;
@@ -185,7 +185,7 @@ int main(int argc, char **argv)
             laser_mapping->livox_pcl_cbk(msg_holder.livox_msg);
             // sleep 100ms
             usleep(100000);
-            count++;
+            pc_count++;
             continue;
         }
 
@@ -194,7 +194,7 @@ int main(int argc, char **argv)
             ROS_INFO_STREAM("process point_cloud_msg " << std::fixed << std::setprecision(2) << msg_holder.point_cloud_msg->header.stamp.toSec() - first_message_ts<<"/"<<total_time<<"s\n");
             laser_mapping->standard_pcl_cbk(msg_holder.point_cloud_msg);
             usleep(100000);
-            count++;
+            pc_count++;
             continue;
         }
 
@@ -205,7 +205,6 @@ int main(int argc, char **argv)
             {
                 first_message_ts = msg_holder.imu_msg->header.stamp.toSec();
             }
-            count++;
             continue;
         }
     }
@@ -213,9 +212,9 @@ int main(int argc, char **argv)
     ROS_INFO_STREAM("Finished processing bag file.");
     is_exit = true;
     futureObj.wait(); // Wait for the signal from the detached thread
-    if (count == 0)
+    if (pc_count == 0)
     {
-        ROS_ERROR_STREAM("No messages found in bag file.");
+        ROS_ERROR_STREAM("No point cloud messages processed. Exiting.");
         return -1;
     }
     // save map to pcd

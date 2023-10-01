@@ -64,9 +64,12 @@ LaserMapping::LaserMapping(std::string save_folder_prefix)
     baml_file_dir = std::string(ROOT_DIR) + "PCD/" + std::string(tmp) + "_" + baml_folder_prefix;
     std::cout<<"Pose File Dir: "<<baml_file_dir<<std::endl;
     mkdir(baml_file_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-    baml_pose_fs.open(baml_file_dir + "/alidarPose.csv", std::ios::out);
-    baml_pose_fs.precision(6);
-    baml_pose_fs<<std::fixed;
+    // mkdir pcd
+    baml_file_dir_pcd = baml_file_dir + "/pcd";
+    mkdir(baml_file_dir_pcd.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    pose_fs.open(baml_file_dir + "/pose.json", std::ios::out);
+    pose_fs.precision(6);
+    pose_fs<<std::fixed;
 }
 
 void LaserMapping::initOthers()
@@ -509,18 +512,30 @@ void LaserMapping::savePCD()
 void LaserMapping::savePoseAndPointCloud()
 {
     static int pcd_count = 0;
-    // save pose to file
-    Eigen::Matrix4d outT;
-    outT << state_point.rot.toRotationMatrix(), state_point.pos, 0, 0, 0, measures.lidar_beg_time;
-    for (int j = 0; j < 4; j++)
-    {
-        for (int k = 0; k < 4; k++)
-        baml_pose_fs << outT(j, k) << ",";
-        baml_pose_fs << endl;
-    }
+    
+    // save pose to file, with hba format: format of the pose is tx ty tz qw qx qy qz.
+    geometry_msgs::Quaternion geoQuat;
+    geoQuat.x = state_point.rot.coeffs()[0];
+    geoQuat.y = state_point.rot.coeffs()[1];
+    geoQuat.z = state_point.rot.coeffs()[2];
+    geoQuat.w = state_point.rot.coeffs()[3];
+
+    // Write position
+    pose_fs << state_point.pos(0) << " " << state_point.pos(1) << " " << state_point.pos(2) << " ";
+    pose_fs << geoQuat.w << " " << geoQuat.x << " " << geoQuat.y << " " << geoQuat.z << "\n";
+    pose_fs.flush();
+    // save to baml pose file
+    // Eigen::Matrix4d outT;
+    // outT << state_point.rot.toRotationMatrix(), state_point.pos, 0, 0, 0, measures.lidar_beg_time;
+    // for (int j = 0; j < 4; j++)
+    // {
+    //     for (int k = 0; k < 4; k++)
+    //     pose_fs << outT(j, k) << ",";
+    //     pose_fs << endl;
+    // }
 
     // save pointcloud to file
-    string pointcloud_file_name = baml_file_dir + "/full" + std::to_string(pcd_count) + ".pcd";
+    string pointcloud_file_name = baml_file_dir_pcd + "/" + std::to_string(pcd_count) + ".pcd";
 
     int size = feats_undistort->points.size();
     PointCloudXYZI::Ptr laserCloudIMUBody(new PointCloudXYZI(size, 1)); //创建一个点云用于存储转换到IMU系的点云
