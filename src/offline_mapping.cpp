@@ -76,24 +76,28 @@ int main(int argc, char **argv)
     ::signal(SIGSEGV, &print_stacktrace);
     ::signal(SIGABRT, &print_stacktrace);
 
-    std::string bag_file = "";
-    std::string config_file = "";
     if (argc < 3)
     {
         ROS_ERROR_STREAM("Usage: rosrun offline_mapping <bag_file> <config_file>");
         return -1;
     }
-    else
-    {
-        bag_file = argv[1];
-        config_file = argv[2];
-    }
+
+    const std::string bag_file = argv[1];
+    const std::string config_file = argv[2];
+
 
     ROS_INFO_STREAM("bag_file: " << bag_file);
     ROS_INFO_STREAM("config_file: " << config_file);
 
-    auto laser_mapping = std::make_shared<LaserMapping>();
+    // get rosbag name and assign to laser_mapping prefix
+    std::string bag_name = bag_file.substr(bag_file.find_last_of("/") + 1);
+    bag_name = bag_name.substr(0, bag_name.find_last_of("."));
+    std::cout << "bag_name: " << bag_name << std::endl;
+    ROS_INFO_STREAM("bag_file: " << bag_file);
+
+    auto laser_mapping = std::make_shared<LaserMapping>(bag_name);
     laser_mapping->initWithoutROS(config_file);
+    
     ROS_INFO_STREAM("LaserMapping init OK");
 
     std::promise<void> exitSignal;
@@ -119,7 +123,7 @@ int main(int argc, char **argv)
     rosbag::Bag bag(bag_file, rosbag::bagmode::Read);
     ROS_INFO_STREAM("Open rosbag OK");
 
-    ROS_INFO_STREAM("Processing bag file ...");
+    ROS_INFO_STREAM("Processing bag file ..."<<bag_file);
     std::priority_queue<MessageHolder, std::vector<MessageHolder>, CompareTimestamp> messageQueue;
 
     int count = 0;
@@ -176,6 +180,7 @@ int main(int argc, char **argv)
             laser_mapping->livox_pcl_cbk(msg_holder.livox_msg);
             // sleep 100ms
             usleep(100000);
+            count++;
             continue;
         }
 
@@ -184,6 +189,7 @@ int main(int argc, char **argv)
             ROS_INFO_STREAM("process point_cloud_msg " << std::fixed << std::setprecision(2) << msg_holder.point_cloud_msg->header.stamp.toSec() - first_message_ts<<"s\n");
             laser_mapping->standard_pcl_cbk(msg_holder.point_cloud_msg);
             usleep(100000);
+            count++;
             continue;
         }
 
@@ -194,12 +200,20 @@ int main(int argc, char **argv)
             {
                 first_message_ts = msg_holder.imu_msg->header.stamp.toSec();
             }
+            count++;
             continue;
         }
     }
 
     ROS_INFO_STREAM("Finished processing bag file.");
+    is_exit = true;
     futureObj.wait(); // Wait for the signal from the detached thread
+    if (count == 0)
+    {
+        ROS_ERROR_STREAM("No messages found in bag file.");
+        return -1;
+    }
+    // save map to pcd
     laser_mapping->savePCD();
 
     return 0;

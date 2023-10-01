@@ -49,9 +49,10 @@
 #include "Mapping.hpp"
 #include "Utils.hpp"
 
-LaserMapping::LaserMapping()
+LaserMapping::LaserMapping(std::string save_folder_prefix)
     : extrinT(3, 0.0),
-      extrinR(9, 0.0)
+      extrinR(9, 0.0),
+      baml_folder_prefix(save_folder_prefix)
 {
     p_pre = std::make_shared<Preprocess>();
     p_imu = std::make_shared<ImuProcess>();
@@ -60,7 +61,7 @@ LaserMapping::LaserMapping()
     time_t t = time(0);
     char tmp[64];
     strftime(tmp, sizeof(tmp), "%Y%m%d_%H%M%S", localtime(&t));
-    baml_file_dir = std::string(ROOT_DIR) + "/PCD/" + std::string(tmp);
+    baml_file_dir = std::string(ROOT_DIR) + "PCD/" + std::string(tmp) + "_" + baml_folder_prefix;
     std::cout<<"Pose File Dir: "<<baml_file_dir<<std::endl;
     mkdir(baml_file_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     baml_pose_fs.open(baml_file_dir + "/alidarPose.csv", std::ios::out);
@@ -212,6 +213,9 @@ void LaserMapping::LoadParamsFromYAML(const std::string &yaml_file)
     // nh.param<string>("common/lid_topic", lid_topic, "/livox/lidar");
     lid_topic = yaml["common"]["lid_topic"].as<std::string>("/livox/lidar");
     ROS_INFO_STREAM("lid_topic: " << lid_topic);
+
+    distance_threshold = yaml["common"]["distance_threshold"].as<double>(0.5);
+    ROS_INFO_STREAM("distance_threshold: " << distance_threshold);
 
     // nh.param<string>("common/imu_topic", imu_topic, "/livox/imu");
     imu_topic = yaml["common"]["imu_topic"].as<std::string>("/livox/imu");
@@ -465,11 +469,22 @@ void LaserMapping::RunOnce()
 
     // TODO save pose to file
 
+    postProcess();
+}
+
+void LaserMapping::postProcess()
+{
+ // Calculate Euclidean distance between current and last saved state_point
+    double distance = (state_point.pos - last_saved_state_point.pos).norm();
+    // Only save pose and point cloud if state_point has changed by more than 0.1 meter
+    if (distance > distance_threshold)
     {
+        std::cout<<"distance: "<<distance<<std::endl;
         publish_frame_world(pubLaserCloudFull);
         savePoseAndPointCloud();
-    }
-    
+
+        last_saved_state_point = state_point;
+    } // end if distance
 }
 
 void LaserMapping::savePCD()
@@ -493,6 +508,7 @@ void LaserMapping::savePCD()
 
 void LaserMapping::savePoseAndPointCloud()
 {
+    static int pcd_count = 0;
     // save pose to file
     Eigen::Matrix4d outT;
     outT << state_point.rot.toRotationMatrix(), state_point.pos, 0, 0, 0, measures.lidar_beg_time;
@@ -504,7 +520,6 @@ void LaserMapping::savePoseAndPointCloud()
     }
 
     // save pointcloud to file
-    static int pcd_count = 0;
     string pointcloud_file_name = baml_file_dir + "/full" + std::to_string(pcd_count) + ".pcd";
 
     int size = feats_undistort->points.size();
@@ -513,28 +528,13 @@ void LaserMapping::savePoseAndPointCloud()
     for (int i = 0; i < size; i++)
     {
         RGBpointBodyLidarToIMU(&feats_undistort->points[i],
-                               &laserCloudIMUBody->points[i]); //转换到IMU坐标系
+                            &laserCloudIMUBody->points[i]); //转换到IMU坐标系
     }
 
     pcl::io::savePCDFileBinary(pointcloud_file_name, *laserCloudIMUBody);
     pcd_count++;
 
-    // string pointcloud_dir(string(string(ROOT_DIR) + "PCD/") + pointcloud_file_name);
-    // ofstream fout_pointcloud;
-    // fout_pointcloud.open(pointcloud_dir, ios::out);
-    // if (fout_pointcloud)
-    // {
-    //     fout_pointcloud << "pointcloud size: " << feats_undistort->size() << endl;
-    //     for (int i = 0; i < feats_undistort->size(); i++)
-    //     {
-    //         fout_pointcloud << feats_undistort->points[i].x << " " << feats_undistort->points[i].y << " " << feats_undistort->points[i].z << endl;
-    //     }
-    //     fout_pointcloud.close();
-    // }
-    // else
-    // {
-    //     cout << "pointcloud file open failed" << endl;
-    // }
+    std::cout<<"pcd file save to: "<<pointcloud_file_name<<std::endl;
 }
 
 void LaserMapping::publish_frame_world(const ros::Publisher &pubLaserCloudFull)

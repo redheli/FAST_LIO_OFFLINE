@@ -75,7 +75,7 @@ class LaserMapping
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-    LaserMapping();
+    LaserMapping(std::string save_folder_prefix = "");
     ~LaserMapping()
     {
         baml_pose_fs.close();
@@ -99,6 +99,7 @@ public:
     void map_incremental();
     void publish_frame_world(const ros::Publisher &pubLaserCloudFull);
     void savePoseAndPointCloud();
+    void postProcess();
 
     // help functions
     template <typename T>
@@ -269,6 +270,7 @@ public:
     MeasureGroup measures;
     esekfom::esekf<state_ikfom, 12, input_ikfom> kf;
     state_ikfom state_point;
+    state_ikfom last_saved_state_point;
     nav_msgs::Path path_; // path to store the trajectory
     vect3 pos_lid;
 
@@ -300,4 +302,6 @@ public:
     pcl::VoxelGrid<pcl::PointXYZINormal> save_pcd_filter;
     ofstream baml_pose_fs; // save pose to BAML pose file, https://github.com/hku-mars/BALM/issues/27#issuecomment-1259446844
     std::string baml_file_dir;
+    std::string baml_folder_prefix;
+    double distance_threshold=0.5;
 };
