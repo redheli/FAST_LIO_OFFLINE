@@ -76,6 +76,10 @@ int main(int argc, char **argv)
     ::signal(SIGSEGV, &print_stacktrace);
     ::signal(SIGABRT, &print_stacktrace);
 
+    double start_time = 0;
+    double end_time = std::numeric_limits<double>::max();
+    double total_time = 0;
+
     if (argc < 3)
     {
         ROS_ERROR_STREAM("Usage: rosrun offline_mapping <bag_file> <config_file>");
@@ -84,6 +88,18 @@ int main(int argc, char **argv)
 
     const std::string bag_file = argv[1];
     const std::string config_file = argv[2];
+
+    if (argc >=4 )
+    {
+        start_time = atof(argv[3]);
+        ROS_INFO_STREAM("start_time: " << start_time);
+    }
+    if (argc >=5 )
+    {
+        end_time = atof(argv[4]);
+        ROS_INFO_STREAM("end_time: " << end_time);
+    }
+
 
 
     ROS_INFO_STREAM("bag_file: " << bag_file);
@@ -131,10 +147,28 @@ int main(int argc, char **argv)
     int imu_count = 0;
     double first_message_ts = 0;
 
-    rosbag::View view(bag);
-    ros::Time bag_begin_time = view.getBeginTime();
-    ros::Time bag_end_time = view.getEndTime();
-    double total_time = bag_end_time.toSec() - bag_begin_time.toSec();
+{
+    rosbag::View view_tmp(bag);
+    ros::Time bag_begin_time = view_tmp.getBeginTime();
+    ros::Time bag_end_time = view_tmp.getEndTime();
+    std::cout << "bag start time: " <<std::setprecision(20)<< bag_begin_time.toSec() << std::endl;
+    std::cout << "bag end time: " <<std::setprecision(20)<< bag_end_time.toSec() << std::endl;
+
+    double duration = bag_end_time.toSec() - bag_begin_time.toSec();
+
+    start_time = bag_begin_time.toSec() + start_time;
+
+    end_time = (end_time > duration) ? duration : end_time;
+    end_time = bag_begin_time.toSec() + end_time;
+
+    total_time = end_time - start_time;
+}
+
+    std::cout << "start_time: " <<std::setprecision(20)<< start_time << std::endl;
+    std::cout << "end_time  : " <<std::setprecision(20)<< end_time << std::endl;
+
+    rosbag::View view(bag,ros::Time(start_time), ros::Time(end_time));
+    
     for (const rosbag::MessageInstance &msg : view)
     {
         if (is_exit)
