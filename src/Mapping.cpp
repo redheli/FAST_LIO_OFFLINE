@@ -160,9 +160,10 @@ void LaserMapping::initOnline(ros::NodeHandle &nh)
     ROS_INFO("LaserMapping initOnline2");
     if (p_pre->lidar_type == AVIA)
     {
-        sub_pcl = nh.subscribe<livox_ros_driver::CustomMsg>(lid_topic, 200000,
-                                                            [this](const livox_ros_driver::CustomMsg::ConstPtr &msg)
-                                                            { livox_pcl_cbk(msg); });
+        throw std::runtime_error("AVIA lidar is not supported yet!");
+        // sub_pcl = nh.subscribe<livox_ros_driver::CustomMsg>(lid_topic, 200000,
+        //                                                     [this](const livox_ros_driver::CustomMsg::ConstPtr &msg)
+        //                                                     { livox_pcl_cbk(msg); });
     }
     else
     {
@@ -955,36 +956,36 @@ void LaserMapping::h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<d
     solve_time += omp_get_wtime() - solve_start_;
 }
 
-void LaserMapping::livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg)
-{
-    mtx_buffer.lock();
-    double preprocess_start_time = omp_get_wtime();
-    scan_count++;
-    if (msg->header.stamp.toSec() < last_timestamp_lidar)
-    {
-        ROS_ERROR("lidar loop back, clear buffer");
-        throw std::runtime_error("lidar loop back, clear buffer");
-        lidar_buffer.clear();
-    }
-    last_timestamp_lidar = msg->header.stamp.toSec();
+// void LaserMapping::livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg)
+// {
+//     mtx_buffer.lock();
+//     double preprocess_start_time = omp_get_wtime();
+//     scan_count++;
+//     if (msg->header.stamp.toSec() < last_timestamp_lidar)
+//     {
+//         ROS_ERROR("lidar loop back, clear buffer");
+//         throw std::runtime_error("lidar loop back, clear buffer");
+//         lidar_buffer.clear();
+//     }
+//     last_timestamp_lidar = msg->header.stamp.toSec();
 
-    if (!time_sync_en && abs(last_timestamp_imu - last_timestamp_lidar) > 10.0 && !imu_buffer.empty() && !lidar_buffer.empty())
-    {
-        printf("IMU and LiDAR not Synced, IMU time: %lf, lidar header time: %lf \n", last_timestamp_imu, last_timestamp_lidar);
-    }
+//     if (!time_sync_en && abs(last_timestamp_imu - last_timestamp_lidar) > 10.0 && !imu_buffer.empty() && !lidar_buffer.empty())
+//     {
+//         printf("IMU and LiDAR not Synced, IMU time: %lf, lidar header time: %lf \n", last_timestamp_imu, last_timestamp_lidar);
+//     }
 
-    if (time_sync_en && !timediff_set_flg && abs(last_timestamp_lidar - last_timestamp_imu) > 1 && !imu_buffer.empty())
-    {
-        timediff_set_flg = true;
-        timediff_lidar_wrt_imu = last_timestamp_lidar + 0.1 - last_timestamp_imu;
-        printf("Self sync IMU and LiDAR, time diff is %.10lf \n", timediff_lidar_wrt_imu);
-    }
+//     if (time_sync_en && !timediff_set_flg && abs(last_timestamp_lidar - last_timestamp_imu) > 1 && !imu_buffer.empty())
+//     {
+//         timediff_set_flg = true;
+//         timediff_lidar_wrt_imu = last_timestamp_lidar + 0.1 - last_timestamp_imu;
+//         printf("Self sync IMU and LiDAR, time diff is %.10lf \n", timediff_lidar_wrt_imu);
+//     }
 
-    PointCloudXYZI::Ptr ptr(new PointCloudXYZI());
-    p_pre->process(msg, ptr);
-    lidar_buffer.push_back(ptr);
-    time_buffer.push_back(last_timestamp_lidar);
+//     PointCloudXYZI::Ptr ptr(new PointCloudXYZI());
+//     p_pre->process(msg, ptr);
+//     lidar_buffer.push_back(ptr);
+//     time_buffer.push_back(last_timestamp_lidar);
 
-    s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
-    mtx_buffer.unlock();
-}
+//     s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
+//     mtx_buffer.unlock();
+// }

@@ -53,9 +53,9 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   pcl_ros
   tf
-  livox_ros_driver
-  message_generation
   eigen_conversions
+  genmsg
+  message_generation
 )
 
 find_package(Eigen3 REQUIRED)
@@ -87,11 +87,11 @@ catkin_package(
   INCLUDE_DIRS
 )
 
-add_executable(fastlio_mapping src/laserMapping.cpp 
-              include/ikd-Tree/ikd_Tree.cpp src/preprocess.cpp
-              src/IMU_Processing.hpp src/IMU_Processing.cpp)
-target_link_libraries(fastlio_mapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
-target_include_directories(fastlio_mapping PRIVATE ${PYTHON_INCLUDE_DIRS})
+# add_executable(fastlio_mapping src/laserMapping.cpp 
+#               include/ikd-Tree/ikd_Tree.cpp src/preprocess.cpp
+#               src/IMU_Processing.hpp src/IMU_Processing.cpp)
+# target_link_libraries(fastlio_mapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
+# target_include_directories(fastlio_mapping PRIVATE ${PYTHON_INCLUDE_DIRS})
 
 
 add_executable(mapping_offline src/offline_mapping.cpp
@@ -107,6 +107,7 @@ target_link_libraries(mapping_offline ${catkin_LIBRARIES}
               boost_stacktrace_backtrace backtrace
               )
 target_include_directories(mapping_offline PRIVATE ${PYTHON_INCLUDE_DIRS})
+add_dependencies(mapping_offline fast_lio_generate_messages_cpp)
 
 add_executable(mapping_online src/online_mapping.cpp 
               src/Mapping.hpp src/Mapping.cpp

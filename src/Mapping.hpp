@@ -59,7 +59,7 @@
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
 #include <geometry_msgs/Vector3.h>
-#include <livox_ros_driver/CustomMsg.h>
+// #include <livox_ros_driver/CustomMsg.h>
 
 #include "IMU_Processing.hpp"
 #include "preprocess.h"
@@ -88,7 +88,7 @@ public:
     void initOnline(ros::NodeHandle &nh);
     void initOthers();
 
-    void livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg);
+    // void livox_pcl_cbk(const livox_ros_driver::CustomMsg::ConstPtr &msg);
     void standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg);
     void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in);
     void RunOnce();

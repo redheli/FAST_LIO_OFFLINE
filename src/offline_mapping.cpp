@@ -8,7 +8,7 @@
 #include <future>
 
 #include "Mapping.hpp"
-#include <livox_ros_driver/CustomMsg.h>
+// #include <livox_ros_driver/CustomMsg.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/Imu.h>
 
@@ -33,14 +33,14 @@ struct MessageHolder
 {
     MessageHolder()
         : imu_msg(nullptr),
-          livox_msg(nullptr),
+        //   livox_msg(nullptr),
           point_cloud_msg(nullptr) {}
     MessageHolder(const MessageHolder &other)
         : imu_msg(other.imu_msg),
-          livox_msg(other.livox_msg),
+        //   livox_msg(other.livox_msg),
           point_cloud_msg(other.point_cloud_msg) {}
     sensor_msgs::Imu::Ptr imu_msg;
-    livox_ros_driver::CustomMsg::ConstPtr livox_msg;
+    // livox_ros_driver::CustomMsg::ConstPtr livox_msg;
     sensor_msgs::PointCloud2::ConstPtr point_cloud_msg;
     double getTime() const
     {
@@ -48,10 +48,10 @@ struct MessageHolder
         {
             return imu_msg->header.stamp.toSec();
         }
-        if (livox_msg)
-        {
-            return livox_msg->header.stamp.toSec();
-        }
+        // if (livox_msg)
+        // {
+        //     return livox_msg->header.stamp.toSec();
+        // }
         if (point_cloud_msg)
         {
             return point_cloud_msg->header.stamp.toSec();
@@ -180,13 +180,13 @@ int main(int argc, char **argv)
         {
             // add to queue
             MessageHolder holder;
-            auto livox_msg = msg.instantiate<livox_ros_driver::CustomMsg>();
-            if (livox_msg && msg.getTopic() == laser_mapping->lid_topic)
-            {
-                livox_ros_driver::CustomMsg::Ptr new_msg(new livox_ros_driver::CustomMsg(*livox_msg));
-                holder.livox_msg = new_msg;
-                messageQueue.push(holder);
-            }
+            // auto livox_msg = msg.instantiate<livox_ros_driver::CustomMsg>();
+            // if (livox_msg && msg.getTopic() == laser_mapping->lid_topic)
+            // {
+            //     livox_ros_driver::CustomMsg::Ptr new_msg(new livox_ros_driver::CustomMsg(*livox_msg));
+            //     holder.livox_msg = new_msg;
+            //     messageQueue.push(holder);
+            // }
             auto point_cloud_msg = msg.instantiate<sensor_msgs::PointCloud2>();
             if (point_cloud_msg && msg.getTopic() == laser_mapping->lid_topic)
             {
@@ -194,13 +194,15 @@ int main(int argc, char **argv)
                 holder.point_cloud_msg = new_msg;
                 messageQueue.push(holder);
             }
-            auto imu_msg = msg.instantiate<sensor_msgs::Imu>();
-            if (imu_msg && msg.getTopic() == laser_mapping->imu_topic)
-            {
-                imu_count++;
-                sensor_msgs::Imu::Ptr new_msg(new sensor_msgs::Imu(*imu_msg));
-                holder.imu_msg = new_msg;
-                messageQueue.push(holder);
+            else {
+                auto imu_msg = msg.instantiate<sensor_msgs::Imu>();
+                if (imu_msg && msg.getTopic() == laser_mapping->imu_topic)
+                {
+                    imu_count++;
+                    sensor_msgs::Imu::Ptr new_msg(new sensor_msgs::Imu(*imu_msg));
+                    holder.imu_msg = new_msg;
+                    messageQueue.push(holder);
+                }
             }
         }
         if (messageQueue.size() < 100)
@@ -211,17 +213,17 @@ int main(int argc, char **argv)
         const MessageHolder msg_holder = messageQueue.top();
         messageQueue.pop();
 
-        if (msg_holder.livox_msg)
-        {
-            ROS_INFO_STREAM("process livox_msg " <<std::fixed << std::setprecision(2) << msg_holder.livox_msg->header.stamp.toSec() - first_message_ts<<"/"<<total_time<<"s\n");
-            double diff = msg_holder.livox_msg->header.stamp.toSec() - last_lidar_time;
-            last_lidar_time = msg_holder.livox_msg->header.stamp.toSec();
-            laser_mapping->livox_pcl_cbk(msg_holder.livox_msg);
-            // sleep 100ms
-            usleep(100000);
-            pc_count++;
-            continue;
-        }
+        // if (msg_holder.livox_msg)
+        // {
+            // ROS_INFO_STREAM("process livox_msg " <<std::fixed << std::setprecision(2) << msg_holder.livox_msg->header.stamp.toSec() - first_message_ts<<"/"<<total_time<<"s\n");
+            // double diff = msg_holder.livox_msg->header.stamp.toSec() - last_lidar_time;
+            // last_lidar_time = msg_holder.livox_msg->header.stamp.toSec();
+            // laser_mapping->livox_pcl_cbk(msg_holder.livox_msg);
+            // // sleep 100ms
+            // usleep(100000);
+            // pc_count++;
+            // continue;
+        // }
 
         if (msg_holder.point_cloud_msg)
         {
