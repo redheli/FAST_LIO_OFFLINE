@@ -353,7 +353,10 @@ void LaserMapping::RunOnce()
     svd_time = 0;
     t0 = omp_get_wtime();
 
-    p_imu->Process(measures, kf, feats_undistort);
+    if(p_imu->Process(measures, kf, feats_undistort) == false){
+        ROS_WARN("IMU process not ready!");
+        return;
+    }
     double imu_lidar_diff = measures.lidar_beg_time - measures.imu.back()->header.stamp.toSec();
     
     state_point = kf.get_x();
@@ -816,13 +819,16 @@ void LaserMapping::imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
 
 void LaserMapping::standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg)
 {
-    mtx_buffer.lock();
+    std::lock_guard<std::mutex> lock(mtx_buffer);
     scan_count++;
     double preprocess_start_time = omp_get_wtime();
     if (msg->header.stamp.toSec() < last_timestamp_lidar)
     {
         ROS_ERROR("lidar loop back, clear buffer");
-        throw std::runtime_error("lidar loop back, clear buffer");
+        ROS_INFO_STREAM("msg header stamp: " <<std::setprecision(20)<< msg->header.stamp.toSec());
+        ROS_INFO_STREAM("last_timestamp_lidar: " <<std::setprecision(20)<< last_timestamp_lidar);
+        // throw std::runtime_error("lidar loop back, clear buffer");
+        return;
         lidar_buffer.clear();
     }
 
@@ -832,7 +838,6 @@ void LaserMapping::standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &ms
     time_buffer.push_back(msg->header.stamp.toSec());
     last_timestamp_lidar = msg->header.stamp.toSec();
     s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
-    mtx_buffer.unlock();
 }
 
 void LaserMapping::h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_data)

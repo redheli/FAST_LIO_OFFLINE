@@ -113,6 +113,10 @@ int main(int argc, char **argv)
 
     auto laser_mapping = std::make_shared<LaserMapping>(bag_name);
     laser_mapping->initWithoutROS(config_file);
+    laser_mapping->scan_pub_en = false;
+    laser_mapping->dense_pub_en = false;
+    laser_mapping->scan_body_pub_en = false;
+
     
     ROS_INFO_STREAM("LaserMapping init OK");
 
@@ -205,7 +209,7 @@ int main(int argc, char **argv)
                 }
             }
         }
-        if (messageQueue.size() < 100)
+        if (messageQueue.size() < 300)
         {
             continue;
         }

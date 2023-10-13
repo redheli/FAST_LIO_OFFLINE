@@ -304,14 +304,14 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikf
   }
 }
 
-void ImuProcess::Process(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI::Ptr cur_pcl_un_)
+bool ImuProcess::Process(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI::Ptr cur_pcl_un_)
 {
   double t1, t2, t3;
   t1 = omp_get_wtime();
 
   if (meas.imu.empty())
   {
-    return;
+    return false;
   };
   ROS_ASSERT(meas.lidar != nullptr);
 
@@ -338,13 +338,15 @@ void ImuProcess::Process(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 1
       fout_imu.open(DEBUG_FILE_DIR("imu.txt"), ios::out);
     }
 
-    return;
+    return false;
   }
 
   UndistortPcl(meas, kf_state, *cur_pcl_un_);
 
   t2 = omp_get_wtime();
   t3 = omp_get_wtime();
+
+  return true;
 
   // cout<<"[ IMU Process ]: Time: "<<t3 - t1<<endl;
 }
