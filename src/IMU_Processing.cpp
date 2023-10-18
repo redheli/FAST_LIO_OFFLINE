@@ -337,8 +337,6 @@ bool ImuProcess::Process(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 1
       //          imu_state.grav[0], imu_state.grav[1], imu_state.grav[2], mean_acc.norm(), cov_bias_gyr[0], cov_bias_gyr[1], cov_bias_gyr[2], cov_acc[0], cov_acc[1], cov_acc[2], cov_gyr[0], cov_gyr[1], cov_gyr[2]);
       fout_imu.open(DEBUG_FILE_DIR("imu.txt"), ios::out);
     }
-
-    return false;
   }
 
   UndistortPcl(meas, kf_state, *cur_pcl_un_);

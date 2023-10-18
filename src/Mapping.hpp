@@ -99,7 +99,8 @@ public:
     void map_incremental();
     void publish_frame_world(const ros::Publisher &pubLaserCloudFull);
     void savePoseAndPointCloud();
-    void postProcess();
+    void saveAllPose(const ros::Time& lidar_timestamp);
+    void postProcess(const ros::Time& lidar_timestamp);
 
     // help functions
     template <typename T>
@@ -300,7 +301,8 @@ public:
     KD_TREE<PointType> ikdtree;
 
     pcl::VoxelGrid<pcl::PointXYZINormal> save_pcd_filter;
-    ofstream pose_fs; // save pose to BAML pose file, https://github.com/hku-mars/BALM/issues/27#issuecomment-1259446844
+    ofstream pose_fs; // save pose every x sec or distance, for BAML pose file, https://github.com/hku-mars/BALM/issues/27#issuecomment-1259446844
+    ofstream all_pose_fs;
     std::string baml_file_dir;
     std::string baml_folder_prefix;
     std::string baml_file_dir_pcd; // hba pcd file dir

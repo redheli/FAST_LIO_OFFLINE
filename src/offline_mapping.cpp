@@ -82,7 +82,7 @@ int main(int argc, char **argv)
 
     if (argc < 3)
     {
-        ROS_ERROR_STREAM("Usage: rosrun offline_mapping <bag_file> <config_file>");
+        ROS_ERROR_STREAM("Usage: rosrun offline_mapping <bag_file> <config_file> <optional_start_time> <optional_end_time>");
         return -1;
     }
 
@@ -172,6 +172,29 @@ int main(int argc, char **argv)
     std::cout << "end_time  : " <<std::setprecision(20)<< end_time << std::endl;
 
     rosbag::View view(bag,ros::Time(start_time), ros::Time(end_time));
+
+    int lidar_queue_size = 0;
+
+    auto processMessage = [&](const MessageHolder& msg_holder) {
+        if (msg_holder.point_cloud_msg)
+        {
+            ROS_INFO_STREAM("process point_cloud_msg " << std::fixed << std::setprecision(2) << msg_holder.point_cloud_msg->header.stamp.toSec() - first_message_ts<<"/"<<total_time<<"s\n");
+            laser_mapping->standard_pcl_cbk(msg_holder.point_cloud_msg);
+            usleep(100000);
+            pc_count++;
+            lidar_queue_size--;
+        }
+
+        if (msg_holder.imu_msg)
+        {
+            // ROS_INFO_STREAM("process imu_msg " << std::fixed << std::setprecision(2) << msg_holder.imu_msg->header.stamp.toSec() - first_message_ts<<"/"<<total_time<<"s\n");
+            laser_mapping->imu_cbk(msg_holder.imu_msg);
+            if (first_message_ts == 0)
+            {
+                first_message_ts = msg_holder.imu_msg->header.stamp.toSec();
+            }
+        }
+    };
     
     for (const rosbag::MessageInstance &msg : view)
     {
@@ -197,6 +220,7 @@ int main(int argc, char **argv)
                 sensor_msgs::PointCloud2::Ptr new_msg(new sensor_msgs::PointCloud2(*point_cloud_msg));
                 holder.point_cloud_msg = new_msg;
                 messageQueue.push(holder);
+                lidar_queue_size++;
             }
             else {
                 auto imu_msg = msg.instantiate<sensor_msgs::Imu>();
@@ -209,7 +233,7 @@ int main(int argc, char **argv)
                 }
             }
         }
-        if (messageQueue.size() < 300)
+        if (lidar_queue_size < 300)
         {
             continue;
         }
@@ -229,23 +253,38 @@ int main(int argc, char **argv)
             // continue;
         // }
 
-        if (msg_holder.point_cloud_msg)
-        {
-            ROS_INFO_STREAM("process point_cloud_msg " << std::fixed << std::setprecision(2) << msg_holder.point_cloud_msg->header.stamp.toSec() - first_message_ts<<"/"<<total_time<<"s\n");
-            laser_mapping->standard_pcl_cbk(msg_holder.point_cloud_msg);
-            usleep(100000);
-            pc_count++;
-            continue;
-        }
+        processMessage(msg_holder);
 
-        if (msg_holder.imu_msg)
+        // if (msg_holder.point_cloud_msg)
+        // {
+        //     ROS_INFO_STREAM("process point_cloud_msg " << std::fixed << std::setprecision(2) << msg_holder.point_cloud_msg->header.stamp.toSec() - first_message_ts<<"/"<<total_time<<"s\n");
+        //     laser_mapping->standard_pcl_cbk(msg_holder.point_cloud_msg);
+        //     usleep(100000);
+        //     pc_count++;
+        //     lidar_queue_size--;
+        //     continue;
+        // }
+
+        // if (msg_holder.imu_msg)
+        // {
+        //     ROS_INFO_STREAM("process imu_msg " << std::fixed << std::setprecision(2) << msg_holder.imu_msg->header.stamp.toSec() - first_message_ts<<"/"<<total_time<<"s\n");
+        //     laser_mapping->imu_cbk(msg_holder.imu_msg);
+        //     if (first_message_ts == 0)
+        //     {
+        //         first_message_ts = msg_holder.imu_msg->header.stamp.toSec();
+        //     }
+        //     continue;
+        // }
+    }
+    ROS_INFO_STREAM("Processing remaining messages ...");
+    if (is_exit == false)
+    {
+        while (!messageQueue.empty())
         {
-            laser_mapping->imu_cbk(msg_holder.imu_msg);
-            if (first_message_ts == 0)
-            {
-                first_message_ts = msg_holder.imu_msg->header.stamp.toSec();
-            }
-            continue;
+            const MessageHolder msg_holder = messageQueue.top();
+            messageQueue.pop();
+
+            processMessage(msg_holder);
         }
     }
 

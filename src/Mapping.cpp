@@ -70,6 +70,10 @@ LaserMapping::LaserMapping(std::string save_folder_prefix)
     pose_fs.open(baml_file_dir + "/pose.json", std::ios::out);
     pose_fs.precision(6);
     pose_fs<<std::fixed;
+
+    all_pose_fs.open(baml_file_dir + "/all_pose.json", std::ios::out);
+    all_pose_fs.precision(6);
+    all_pose_fs<<std::fixed;
 }
 
 void LaserMapping::initOthers()
@@ -476,10 +480,14 @@ void LaserMapping::RunOnce()
 
     // TODO save pose to file
 
-    postProcess();
+    postProcess(lidar_timestamp);
 }
 
-void LaserMapping::postProcess()
+/**
+ * @brief process pose
+ * @param lidar_timestamp the lidar point cloud timestamp of current pose
+*/
+void LaserMapping::postProcess(const ros::Time& lidar_timestamp)
 {
  // Calculate Euclidean distance between current and last saved state_point
     double distance = (state_point.pos - last_saved_state_point.pos).norm();
@@ -492,6 +500,8 @@ void LaserMapping::postProcess()
 
         last_saved_state_point = state_point;
     } // end if distance
+
+    saveAllPose(lidar_timestamp);
 }
 
 void LaserMapping::savePCD()
@@ -511,6 +521,21 @@ void LaserMapping::savePCD()
     }
 
     std::cout<<"Pose and pcd files save to: "<<baml_file_dir<<std::endl;
+}
+
+void LaserMapping::saveAllPose(const ros::Time& lidar_timestamp)
+{    
+    // save pose to file, with hba format: format of the pose is tx ty tz qw qx qy qz.
+    geometry_msgs::Quaternion geoQuat;
+    geoQuat.x = state_point.rot.coeffs()[0];
+    geoQuat.y = state_point.rot.coeffs()[1];
+    geoQuat.z = state_point.rot.coeffs()[2];
+    geoQuat.w = state_point.rot.coeffs()[3];
+
+    // Write position
+    all_pose_fs << lidar_timestamp.toSec() <<" "<< state_point.pos(0) << " " << state_point.pos(1) << " " << state_point.pos(2) << " ";
+    all_pose_fs << geoQuat.w << " " << geoQuat.x << " " << geoQuat.y << " " << geoQuat.z << "\n";
+    all_pose_fs.flush();
 }
 
 void LaserMapping::savePoseAndPointCloud()
@@ -549,6 +574,9 @@ void LaserMapping::savePoseAndPointCloud()
         RGBpointBodyLidarToIMU(&feats_undistort->points[i],
                             &laserCloudIMUBody->points[i]); //转换到IMU坐标系
     }
+
+    std::cout << "offset_R_L_I: " << state_point.offset_R_L_I.toRotationMatrix().eulerAngles(2, 1, 0) * 57.3 << std::endl;
+    std::cout << "offset_T_L_I: " << state_point.offset_T_L_I << std::endl;
 
     pcl::io::savePCDFileBinary(pointcloud_file_name, *laserCloudIMUBody);
     pcd_count++;
