@@ -254,11 +254,14 @@ public:
         }
     };
 
+public:
+    void rebuild_once();
+
 private:
     // Multi-thread Tree Rebuild
     bool termination_flag = false;
     bool rebuild_flag = false;
-    pthread_t rebuild_thread;
+    // pthread_t rebuild_thread;
     pthread_mutex_t termination_flag_mutex_lock, rebuild_ptr_mutex_lock, working_flag_mutex, search_flag_mutex;
     pthread_mutex_t rebuild_logger_mutex_lock, points_deleted_rebuild_mutex_lock;
     // queue<Operation_Logger_Type> Rebuild_Logger;

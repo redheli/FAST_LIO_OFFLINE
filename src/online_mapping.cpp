@@ -12,7 +12,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "laserMapping");
     ros::NodeHandle nh;
 
-    auto laser_mapping = std::make_shared<LaserMapping>();
+    auto laser_mapping = std::make_shared<LaserMapping>("");
     laser_mapping->initOnline(nh);
 
     signal(SIGINT, SigHandle);

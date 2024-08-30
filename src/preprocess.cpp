@@ -316,7 +316,6 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
         }
       }
     }
-
     if(feature_enabled)
     {
       for (int i = 0; i < N_SCANS; i++)
@@ -412,6 +411,14 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
         {
           int layer = pl_orig.points[i].ring;
           double yaw_angle = atan2(added_pt.y, added_pt.x) * 57.2957;
+          // check if layer > N_SCANS
+          if (layer >= N_SCANS){
+            std::cout<<"layer >= N_SCANS "<<layer<< "skip this scan"<<std::endl;
+            pl_surf.clear();
+            pl_corn.clear();
+            pl_full.clear();
+            return;
+          }
 
           if (is_first[layer])
           {

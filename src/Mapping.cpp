@@ -43,19 +43,36 @@
 #include <Python.h>
 #include <so3_math.h>
 #include <ros/ros.h>
+#include <iostream> 
 #include <yaml-cpp/yaml.h>
 
 #include "Mapping.hpp"
 #include "Utils.hpp"
 
-LaserMapping::LaserMapping()
+LaserMapping::LaserMapping(std::string save_folder_prefix, bool save_hba_graph)
     : extrinT(3, 0.0),
-      extrinR(9, 0.0)
+      extrinR(9, 0.0),
+      baml_folder_prefix(save_folder_prefix),
+      save_hba_graph(save_hba_graph)
 {
     p_pre = std::make_shared<Preprocess>();
     p_imu = std::make_shared<ImuProcess>();
 
-    cout << "p_pre->lidar_type " << p_pre->lidar_type << endl;
+    if (save_hba_graph) {
+        // create folder under ./PCD with current time
+        time_t t = time(0);
+        char tmp[64];
+        strftime(tmp, sizeof(tmp), "%Y%m%d_%H%M%S", localtime(&t));
+        baml_file_dir = std::string(ROOT_DIR) + "PCD/" + std::string(tmp) + "_" + baml_folder_prefix;
+        std::cout<<"Pose File Dir: "<<baml_file_dir<<std::endl;
+        mkdir(baml_file_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        // mkdir pcd
+        baml_file_dir_pcd = baml_file_dir + "/pcd";
+        mkdir(baml_file_dir_pcd.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        pose_fs.open(baml_file_dir + "/pose.json", std::ios::out);
+        pose_fs.precision(6);
+        pose_fs<<std::fixed;
+    }
 }
 
 void LaserMapping::initOthers()
@@ -202,6 +219,9 @@ void LaserMapping::LoadParamsFromYAML(const std::string &yaml_file)
     // nh.param<string>("common/lid_topic", lid_topic, "/livox/lidar");
     lid_topic = yaml["common"]["lid_topic"].as<std::string>("/livox/lidar");
     ROS_INFO_STREAM("lid_topic: " << lid_topic);
+
+    distance_threshold = yaml["common"]["distance_threshold"].as<double>(0.5);
+    ROS_INFO_STREAM("distance_threshold: " << distance_threshold);
 
     // nh.param<string>("common/imu_topic", imu_topic, "/livox/imu");
     imu_topic = yaml["common"]["imu_topic"].as<std::string>("/livox/imu");
@@ -375,6 +395,7 @@ void LaserMapping::RunOnce()
         ROS_WARN("Init ikdtree!\n");
         return;
     }
+
     // 获取ikd tree中的有效节点数，无效点就是被打了deleted标签的点
     int featsFromMapNum = ikdtree.validnum();
     // 获取Ikd tree中的节点数
@@ -455,10 +476,25 @@ void LaserMapping::RunOnce()
 
     // TODO save pose to file
 
+    postProcess();
+}
+
+void LaserMapping::postProcess()
+{
+ // Calculate Euclidean distance between current and last saved state_point
+    double distance = (state_point.pos - last_saved_state_point.pos).norm();
+    // Only save pose and point cloud if state_point has changed by more than 0.1 meter
+    if (distance > distance_threshold)
     {
+        std::cout<<"distance: "<<distance<<std::endl;
         publish_frame_world(pubLaserCloudFull);
-    }
-    
+        if (save_hba_graph)
+        {
+            savePoseAndPointCloud();
+        }
+
+        last_saved_state_point = state_point;
+    } // end if distance
 }
 
 void LaserMapping::savePCD()
@@ -476,6 +512,52 @@ void LaserMapping::savePCD()
         cout << "....... Done" << file_name << endl;
         cout << "current scan saved to /PCD/" << file_name << endl;
     }
+
+    std::cout<<"Pose and pcd files save to: "<<baml_file_dir<<std::endl;
+}
+
+void LaserMapping::savePoseAndPointCloud()
+{
+    static int pcd_count = 0;
+    
+    // save pose to file, with hba format: format of the pose is tx ty tz qw qx qy qz.
+    // https://github.com/hku-mars/HBA
+    geometry_msgs::Quaternion geoQuat;
+    geoQuat.x = state_point.rot.coeffs()[0];
+    geoQuat.y = state_point.rot.coeffs()[1];
+    geoQuat.z = state_point.rot.coeffs()[2];
+    geoQuat.w = state_point.rot.coeffs()[3];
+
+    // Write position
+    pose_fs << state_point.pos(0) << " " << state_point.pos(1) << " " << state_point.pos(2) << " ";
+    pose_fs << geoQuat.w << " " << geoQuat.x << " " << geoQuat.y << " " << geoQuat.z << "\n";
+    pose_fs.flush();
+    // save to baml pose file
+    // Eigen::Matrix4d outT;
+    // outT << state_point.rot.toRotationMatrix(), state_point.pos, 0, 0, 0, measures.lidar_beg_time;
+    // for (int j = 0; j < 4; j++)
+    // {
+    //     for (int k = 0; k < 4; k++)
+    //     pose_fs << outT(j, k) << ",";
+    //     pose_fs << endl;
+    // }
+
+    // save pointcloud to file
+    string pointcloud_file_name = baml_file_dir_pcd + "/" + std::to_string(pcd_count) + ".pcd";
+
+    int size = feats_undistort->points.size();
+    PointCloudXYZI::Ptr laserCloudIMUBody(new PointCloudXYZI(size, 1)); //创建一个点云用于存储转换到IMU系的点云
+
+    for (int i = 0; i < size; i++)
+    {
+        RGBpointBodyLidarToIMU(&feats_undistort->points[i],
+                            &laserCloudIMUBody->points[i]); //转换到IMU坐标系
+    }
+
+    pcl::io::savePCDFileBinary(pointcloud_file_name, *laserCloudIMUBody);
+    pcd_count++;
+
+    std::cout<<"pcd file save to: "<<pointcloud_file_name<<std::endl;
 }
 
 void LaserMapping::publish_frame_world(const ros::Publisher &pubLaserCloudFull)
@@ -589,6 +671,7 @@ void LaserMapping::map_incremental()
     double st_time = omp_get_wtime();
     add_point_size = ikdtree.Add_Points(PointToAdd, true);
     ikdtree.Add_Points(PointNoNeedDownsample, false);
+    ikdtree.rebuild_once();
     add_point_size = PointToAdd.size() + PointNoNeedDownsample.size();
     kdtree_incremental_time = omp_get_wtime() - st_time;
 }

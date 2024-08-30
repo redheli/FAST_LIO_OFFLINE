@@ -135,8 +135,62 @@ void ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
 
     N++;
   }
-  state_ikfom init_state = kf_state.get_x();
-  init_state.grav = S2(-mean_acc / mean_acc.norm() * G_m_s2);
+
+  auto isQuaternionValid = [](const geometry_msgs::Quaternion &q) -> bool {
+    bool valid = std::abs((q.w * q.w
+                        + q.x * q.x
+                        + q.y * q.y
+                        + q.z * q.z) - 1.0f) < 10e-6;
+    return valid;
+  };
+  Eigen::Quaterniond rotation2 = Eigen::Quaterniond::FromTwoVectors(mean_acc, Eigen::Vector3d::UnitZ());
+  auto euler2 = rotation2.toRotationMatrix().eulerAngles(0, 1, 2);
+  std::cout << "Euler2 from quaternion in roll, pitch, yaw"<< std::endl << euler2*57.3 << std::endl;
+  std::cout<<"meas.imu.front()->orientation "<<meas.imu.front()->orientation<<std::endl;
+
+  state_ikfom init_state;
+  // check if orientation is valid
+  if (isQuaternionValid(meas.imu.front()->orientation))
+  {
+    
+    // b_first_frame_ = true;
+    // Reset();  
+    // return;
+    tf::Quaternion quat;
+    tf::quaternionMsgToTF(meas.imu.front()->orientation, quat);
+    double roll, pitch, yaw;
+    tf::Matrix3x3(quat).getRPY(roll, pitch, yaw);
+    std::cout<<" meas.imu.front() imu orentation: "<<roll*57.3<<" "<<pitch*57.3<<" "<<yaw*57.3<<std::endl;
+    Eigen::Quaterniond rotation(quat.w(), quat.x(), quat.y(), quat.z());
+
+    std::cout << "mean_acc before=============: " << mean_acc << std::endl;
+    std::cout << "mean_gyr before: " << mean_gyr << std::endl;
+    mean_acc = rotation * mean_acc;
+    mean_gyr = rotation * mean_gyr;
+    std::cout << "mean_acc after: " << mean_acc << std::endl;
+    std::cout << "mean_gyr after: " << mean_gyr << std::endl;
+    init_state = kf_state.get_x();
+    init_state.rot = rotation;
+    init_state.grav = S2(-mean_acc / mean_acc.norm() * G_m_s2);
+  }
+  else{
+    // imu without gyro
+    std::cout << "Invalid IMU orientation, estimate without gyro" << std::endl;
+    Eigen::Quaterniond rotation = Eigen::Quaterniond::FromTwoVectors(mean_acc, Eigen::Vector3d::UnitZ());
+    mean_acc = rotation * mean_acc;
+    mean_gyr = rotation * mean_gyr;
+    init_state = kf_state.get_x();
+    init_state.rot = rotation;
+    init_state.grav = S2(-mean_acc / mean_acc.norm() * G_m_s2);
+  }
+
+
+
+  std::cout << "IMU init: " << std::endl;
+
+  std::cout << "rot: " << init_state.rot.coeffs().transpose() << std::endl;
+  std::cout << "cur_acc: " << mean_acc.transpose() << std::endl;
+
 
   // state_inout.rot = Eye3d; // Exp(mean_acc.cross(V3D(0, 0, -1 / scale_gravity)));
   init_state.bg = mean_gyr;

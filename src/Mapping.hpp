@@ -75,9 +75,10 @@ class LaserMapping
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-    LaserMapping();
+    LaserMapping(std::string save_folder_prefix, bool save_hba_graph = false);
     ~LaserMapping()
     {
+        pose_fs.close();
     }
 
     /// init without ros
@@ -97,6 +98,8 @@ public:
     void lasermap_fov_segment();
     void map_incremental();
     void publish_frame_world(const ros::Publisher &pubLaserCloudFull);
+    void savePoseAndPointCloud();
+    void postProcess();
 
     // help functions
     template <typename T>
@@ -131,6 +134,17 @@ public:
         po->x = p_global(0);
         po->y = p_global(1);
         po->z = p_global(2);
+        po->intensity = pi->intensity;
+    }
+
+    void RGBpointBodyLidarToIMU(PointType const * const pi, PointType * const po)
+    {
+        V3D p_body_lidar(pi->x, pi->y, pi->z);
+        V3D p_body_imu(state_point.offset_R_L_I*p_body_lidar + state_point.offset_T_L_I);
+
+        po->x = p_body_imu(0);
+        po->y = p_body_imu(1);
+        po->z = p_body_imu(2);
         po->intensity = pi->intensity;
     }
 
@@ -256,6 +270,7 @@ public:
     MeasureGroup measures;
     esekfom::esekf<state_ikfom, 12, input_ikfom> kf;
     state_ikfom state_point;
+    state_ikfom last_saved_state_point;
     nav_msgs::Path path_; // path to store the trajectory
     vect3 pos_lid;
 
@@ -285,4 +300,10 @@ public:
     KD_TREE<PointType> ikdtree;
 
     pcl::VoxelGrid<pcl::PointXYZINormal> save_pcd_filter;
+    ofstream pose_fs; // save pose to BAML pose file, https://github.com/hku-mars/BALM/issues/27#issuecomment-1259446844
+    std::string baml_file_dir;
+    std::string baml_folder_prefix;
+    std::string baml_file_dir_pcd; // hba pcd file dir
+    double distance_threshold=0.5;
+    bool save_hba_graph=false;
 };

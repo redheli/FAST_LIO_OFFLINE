@@ -5,6 +5,7 @@
 #include <csignal>
 #include <signal.h>
 #include <boost/stacktrace.hpp>
+#include <future>
 
 #include "Mapping.hpp"
 #include <livox_ros_driver/CustomMsg.h>
@@ -75,32 +76,72 @@ int main(int argc, char **argv)
     ::signal(SIGSEGV, &print_stacktrace);
     ::signal(SIGABRT, &print_stacktrace);
 
-    std::string bag_file = "";
-    std::string config_file = "";
+    double start_time = 0;
+    double end_time = std::numeric_limits<double>::max();
+    double total_time = 0;
+
     if (argc < 3)
     {
         ROS_ERROR_STREAM("Usage: rosrun offline_mapping <bag_file> <config_file>");
         return -1;
     }
-    else
+
+    const std::string bag_file = argv[1];
+    const std::string config_file = argv[2];
+
+    bool save_hba_graph = false;
+
+    for (int i = 3; i < argc; ++i)
     {
-        bag_file = argv[1];
-        config_file = argv[2];
+        if (std::string(argv[i]) == "--start_time" && i + 1 < argc)
+        {
+            start_time = atof(argv[++i]);
+            ROS_INFO_STREAM("start_time: " << start_time);
+        }
+        else if (std::string(argv[i]) == "--end_time" && i + 1 < argc)
+        {
+            end_time = atof(argv[++i]);
+            ROS_INFO_STREAM("end_time: " << end_time);
+        }
+        else if (std::string(argv[i]) == "--save_hba_graph" && i + 1 < argc)
+        {
+            save_hba_graph = true;
+            ROS_INFO_STREAM("save_hba_graph: " << save_hba_graph);
+        }
+        else
+        {
+            ROS_ERROR_STREAM("Unknown argument: " << argv[i]);
+            ROS_ERROR_STREAM("Usage: rosrun offline_mapping <bag_file> <config_file> [--start_time <start_time>] [--end_time <end_time>]");
+            return -1;
+        }
     }
 
     ROS_INFO_STREAM("bag_file: " << bag_file);
     ROS_INFO_STREAM("config_file: " << config_file);
 
-    auto laser_mapping = std::make_shared<LaserMapping>();
+    // get rosbag name and assign to laser_mapping prefix
+    std::string bag_name = bag_file.substr(bag_file.find_last_of("/") + 1);
+    bag_name = bag_name.substr(0, bag_name.find_last_of("."));
+    std::cout << "bag_name: " << bag_name << std::endl;
+    ROS_INFO_STREAM("bag_file: " << bag_file);
+
+    auto laser_mapping = std::make_shared<LaserMapping>(bag_name, save_hba_graph);
     laser_mapping->initWithoutROS(config_file);
+    
     ROS_INFO_STREAM("LaserMapping init OK");
+
+    std::promise<void> exitSignal;
+    std::future<void> futureObj = exitSignal.get_future();
+
 
     std::thread runOnceThread([&]()
                               {
     while (!is_exit) {
         laser_mapping->RunOnce();
         std::this_thread::sleep_for(std::chrono::milliseconds(10)); // equivalent to usleep(1000);
-    } });
+    }
+        exitSignal.set_value(); // Signal that the thread has finished
+    });
 
     runOnceThread.detach();
 
@@ -112,14 +153,37 @@ int main(int argc, char **argv)
     rosbag::Bag bag(bag_file, rosbag::bagmode::Read);
     ROS_INFO_STREAM("Open rosbag OK");
 
-    ROS_INFO_STREAM("Processing bag file ...");
+    ROS_INFO_STREAM("Processing bag file ..."<<bag_file);
     std::priority_queue<MessageHolder, std::vector<MessageHolder>, CompareTimestamp> messageQueue;
 
-    int count = 0;
+    int pc_count = 0;
     double last_lidar_time = 0;
     int imu_count = 0;
     double first_message_ts = 0;
-    for (const rosbag::MessageInstance &msg : rosbag::View(bag))
+
+{
+    rosbag::View view_tmp(bag);
+    ros::Time bag_begin_time = view_tmp.getBeginTime();
+    ros::Time bag_end_time = view_tmp.getEndTime();
+    std::cout << "bag start time: " <<std::setprecision(20)<< bag_begin_time.toSec() << std::endl;
+    std::cout << "bag end time: " <<std::setprecision(20)<< bag_end_time.toSec() << std::endl;
+
+    double duration = bag_end_time.toSec() - bag_begin_time.toSec();
+
+    start_time = bag_begin_time.toSec() + start_time;
+
+    end_time = (end_time > duration) ? duration : end_time;
+    end_time = bag_begin_time.toSec() + end_time;
+
+    total_time = end_time - start_time;
+}
+
+    std::cout << "start_time: " <<std::setprecision(20)<< start_time << std::endl;
+    std::cout << "end_time  : " <<std::setprecision(20)<< end_time << std::endl;
+
+    rosbag::View view(bag,ros::Time(start_time), ros::Time(end_time));
+    
+    for (const rosbag::MessageInstance &msg : view)
     {
         if (is_exit)
         {
@@ -163,20 +227,22 @@ int main(int argc, char **argv)
 
         if (msg_holder.livox_msg)
         {
-            ROS_INFO_STREAM("process livox_msg " <<std::fixed << std::setprecision(2) << msg_holder.livox_msg->header.stamp.toSec() - first_message_ts<<"s\n");
+            ROS_INFO_STREAM("process livox_msg " <<std::fixed << std::setprecision(2) << msg_holder.livox_msg->header.stamp.toSec() - first_message_ts<<"/"<<total_time<<"s\n");
             double diff = msg_holder.livox_msg->header.stamp.toSec() - last_lidar_time;
             last_lidar_time = msg_holder.livox_msg->header.stamp.toSec();
             laser_mapping->livox_pcl_cbk(msg_holder.livox_msg);
             // sleep 100ms
             usleep(100000);
+            pc_count++;
             continue;
         }
 
         if (msg_holder.point_cloud_msg)
         {
-            ROS_INFO_STREAM("process point_cloud_msg " << std::fixed << std::setprecision(2) << msg_holder.point_cloud_msg->header.stamp.toSec() - first_message_ts<<"s\n");
+            ROS_INFO_STREAM("process point_cloud_msg " << std::fixed << std::setprecision(2) << msg_holder.point_cloud_msg->header.stamp.toSec() - first_message_ts<<"/"<<total_time<<"s\n");
             laser_mapping->standard_pcl_cbk(msg_holder.point_cloud_msg);
             usleep(100000);
+            pc_count++;
             continue;
         }
 
@@ -192,6 +258,14 @@ int main(int argc, char **argv)
     }
 
     ROS_INFO_STREAM("Finished processing bag file.");
+    is_exit = true;
+    futureObj.wait(); // Wait for the signal from the detached thread
+    if (pc_count == 0)
+    {
+        ROS_ERROR_STREAM("No point cloud messages processed. Exiting.");
+        return -1;
+    }
+    // save map to pcd
     laser_mapping->savePCD();
 
     return 0;
