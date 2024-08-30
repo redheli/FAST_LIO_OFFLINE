@@ -8,6 +8,7 @@ designed for efficient and direct processing of rosbag files. It reads sensor me
 - Priority Queue for Messages: Messages are placed in a priority queue to ensure they are ordered by timestamp.
 - Dedicated `Mapping` Class: The Mapping class, extracted from the original laserMapping.cpp, is used for mapping functionalities.
 - Verification with Online Mapping: `online_mapping.cpp` retains the same functionality as the original laserMapping.cpp to verify that the Mapping class works as intended.
+- single thread ikdtree
 
 
 ## Install
@@ -33,6 +34,12 @@ make -j6
 ```
 ./build/devel/lib/fast_lio/mapping_offline <your-path-to-rosbag> ./config/avia_offline.yaml
 ```
+
+## set start and end time of rosbag
+```
+./build/devel/lib/fast_lio/mapping_offline <your-path-to-rosbag> ./config/avia_offline.yaml --start_time <start_time> --end_time <end_time>
+```
+
 The pcd file is save to `PCD/scans_offline.pcd`
 
 ## example result
