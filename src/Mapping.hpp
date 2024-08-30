@@ -75,7 +75,7 @@ class LaserMapping
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-    LaserMapping(std::string save_folder_prefix = "");
+    LaserMapping(std::string save_folder_prefix, bool save_hba_graph = false);
     ~LaserMapping()
     {
         pose_fs.close();
@@ -305,4 +305,5 @@ public:
     std::string baml_folder_prefix;
     std::string baml_file_dir_pcd; // hba pcd file dir
     double distance_threshold=0.5;
+    bool save_hba_graph=false;
 };

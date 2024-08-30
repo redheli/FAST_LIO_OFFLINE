@@ -49,27 +49,30 @@
 #include "Mapping.hpp"
 #include "Utils.hpp"
 
-LaserMapping::LaserMapping(std::string save_folder_prefix)
+LaserMapping::LaserMapping(std::string save_folder_prefix, bool save_hba_graph)
     : extrinT(3, 0.0),
       extrinR(9, 0.0),
-      baml_folder_prefix(save_folder_prefix)
+      baml_folder_prefix(save_folder_prefix),
+      save_hba_graph(save_hba_graph)
 {
     p_pre = std::make_shared<Preprocess>();
     p_imu = std::make_shared<ImuProcess>();
 
-    // create folder under ./PCD with current time
-    time_t t = time(0);
-    char tmp[64];
-    strftime(tmp, sizeof(tmp), "%Y%m%d_%H%M%S", localtime(&t));
-    baml_file_dir = std::string(ROOT_DIR) + "PCD/" + std::string(tmp) + "_" + baml_folder_prefix;
-    std::cout<<"Pose File Dir: "<<baml_file_dir<<std::endl;
-    mkdir(baml_file_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-    // mkdir pcd
-    baml_file_dir_pcd = baml_file_dir + "/pcd";
-    mkdir(baml_file_dir_pcd.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-    pose_fs.open(baml_file_dir + "/pose.json", std::ios::out);
-    pose_fs.precision(6);
-    pose_fs<<std::fixed;
+    if (save_hba_graph) {
+        // create folder under ./PCD with current time
+        time_t t = time(0);
+        char tmp[64];
+        strftime(tmp, sizeof(tmp), "%Y%m%d_%H%M%S", localtime(&t));
+        baml_file_dir = std::string(ROOT_DIR) + "PCD/" + std::string(tmp) + "_" + baml_folder_prefix;
+        std::cout<<"Pose File Dir: "<<baml_file_dir<<std::endl;
+        mkdir(baml_file_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        // mkdir pcd
+        baml_file_dir_pcd = baml_file_dir + "/pcd";
+        mkdir(baml_file_dir_pcd.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        pose_fs.open(baml_file_dir + "/pose.json", std::ios::out);
+        pose_fs.precision(6);
+        pose_fs<<std::fixed;
+    }
 }
 
 void LaserMapping::initOthers()
@@ -392,6 +395,7 @@ void LaserMapping::RunOnce()
         ROS_WARN("Init ikdtree!\n");
         return;
     }
+
     // 获取ikd tree中的有效节点数，无效点就是被打了deleted标签的点
     int featsFromMapNum = ikdtree.validnum();
     // 获取Ikd tree中的节点数
@@ -484,7 +488,10 @@ void LaserMapping::postProcess()
     {
         std::cout<<"distance: "<<distance<<std::endl;
         publish_frame_world(pubLaserCloudFull);
-        savePoseAndPointCloud();
+        if (save_hba_graph)
+        {
+            savePoseAndPointCloud();
+        }
 
         last_saved_state_point = state_point;
     } // end if distance
@@ -514,6 +521,7 @@ void LaserMapping::savePoseAndPointCloud()
     static int pcd_count = 0;
     
     // save pose to file, with hba format: format of the pose is tx ty tz qw qx qy qz.
+    // https://github.com/hku-mars/HBA
     geometry_msgs::Quaternion geoQuat;
     geoQuat.x = state_point.rot.coeffs()[0];
     geoQuat.y = state_point.rot.coeffs()[1];
@@ -663,6 +671,7 @@ void LaserMapping::map_incremental()
     double st_time = omp_get_wtime();
     add_point_size = ikdtree.Add_Points(PointToAdd, true);
     ikdtree.Add_Points(PointNoNeedDownsample, false);
+    ikdtree.rebuild_once();
     add_point_size = PointToAdd.size() + PointNoNeedDownsample.size();
     kdtree_incremental_time = omp_get_wtime() - st_time;
 }

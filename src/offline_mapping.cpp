@@ -89,18 +89,32 @@ int main(int argc, char **argv)
     const std::string bag_file = argv[1];
     const std::string config_file = argv[2];
 
-    if (argc >=4 )
-    {
-        start_time = atof(argv[3]);
-        ROS_INFO_STREAM("start_time: " << start_time);
-    }
-    if (argc >=5 )
-    {
-        end_time = atof(argv[4]);
-        ROS_INFO_STREAM("end_time: " << end_time);
-    }
+    bool save_hba_graph = false;
 
-
+    for (int i = 3; i < argc; ++i)
+    {
+        if (std::string(argv[i]) == "--start_time" && i + 1 < argc)
+        {
+            start_time = atof(argv[++i]);
+            ROS_INFO_STREAM("start_time: " << start_time);
+        }
+        else if (std::string(argv[i]) == "--end_time" && i + 1 < argc)
+        {
+            end_time = atof(argv[++i]);
+            ROS_INFO_STREAM("end_time: " << end_time);
+        }
+        else if (std::string(argv[i]) == "--save_hba_graph" && i + 1 < argc)
+        {
+            save_hba_graph = true;
+            ROS_INFO_STREAM("save_hba_graph: " << save_hba_graph);
+        }
+        else
+        {
+            ROS_ERROR_STREAM("Unknown argument: " << argv[i]);
+            ROS_ERROR_STREAM("Usage: rosrun offline_mapping <bag_file> <config_file> [--start_time <start_time>] [--end_time <end_time>]");
+            return -1;
+        }
+    }
 
     ROS_INFO_STREAM("bag_file: " << bag_file);
     ROS_INFO_STREAM("config_file: " << config_file);
@@ -111,7 +125,7 @@ int main(int argc, char **argv)
     std::cout << "bag_name: " << bag_name << std::endl;
     ROS_INFO_STREAM("bag_file: " << bag_file);
 
-    auto laser_mapping = std::make_shared<LaserMapping>(bag_name);
+    auto laser_mapping = std::make_shared<LaserMapping>(bag_name, save_hba_graph);
     laser_mapping->initWithoutROS(config_file);
     
     ROS_INFO_STREAM("LaserMapping init OK");
